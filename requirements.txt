@@ -1,0 +1,7 @@
+# analiz.py, analiz1.py — работа с CSV
+pandas==2.3.3
+
+# 1.py — парсинг author.today
+requests>=2.32.0,<3
+beautifulsoup4>=4.12.0,<5
+selenium==4.37.0
