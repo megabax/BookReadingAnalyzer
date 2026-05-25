@@ -71,7 +71,13 @@ def main() -> int:
             if args.json:
                 from author_today.storage.export import save_json
 
-                save_json(table, args.json)
+                save_json(
+                    table,
+                    args.json,
+                    work_id=settings.work_id,
+                    period_start=settings.default_period_start,
+                    period_end=settings.default_period_end,
+                )
         elif args.start and args.end:
             sync_reads_by_period(
                 settings,
@@ -97,7 +103,13 @@ def main() -> int:
             if args.json:
                 from author_today.storage.export import save_json
 
-                save_json(table, args.json)
+                save_json(
+                    table,
+                    args.json,
+                    work_id=settings.work_id,
+                    period_start=settings.default_period_start,
+                    period_end=settings.default_period_end,
+                )
         return 0
     except (TimeoutException, RuntimeError, NotImplementedError) as e:
         print(f"Ошибка: {e}", file=sys.stderr)

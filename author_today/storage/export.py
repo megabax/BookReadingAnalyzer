@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from datetime import date, datetime
 from pathlib import Path
 
 from author_today.domain.models import ReadSnapshot, StatsTable
@@ -30,22 +31,29 @@ def save_csv(table: StatsTable, path: Path) -> None:
             writer.writerow({k: ("" if row.get(k) is None else row.get(k)) for k in writer.fieldnames})
 
 
-def save_json(table: StatsTable, path: Path) -> None:
-    path.write_text(
-        json.dumps({"dates": table.dates, "rows": table.rows}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
+def save_json(
+    table: StatsTable,
+    path: Path,
+    *,
+    work_id: int,
+    period_start: date,
+    period_end: date,
+    fetched_at: datetime | None = None,
+) -> None:
+    """Сохранить JSON: dates[] → { date, chapters[] → { chapter, views } }."""
+    snapshot = ReadSnapshot.from_stats_table(
+        table,
+        work_id=work_id,
+        period_start=period_start,
+        period_end=period_end,
+        fetched_at=fetched_at,
     )
+    save_snapshot_raw(snapshot, path)
 
 
 def save_snapshot_raw(snapshot: ReadSnapshot, path: Path) -> None:
-    """Сохранить снимок в JSON (промежуточный формат до БД)."""
-    data = {
-        "work_id": snapshot.work_id,
-        "period_start": snapshot.period_start.isoformat(),
-        "period_end": snapshot.period_end.isoformat(),
-        "fetched_at": snapshot.fetched_at.isoformat(),
-        "dates": [d.isoformat() for d in snapshot.dates],
-        "chapters": list(snapshot.chapters),
-        "values": [list(row) for row in snapshot.values],
-    }
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    """Сохранить снимок в JSON (data/raw)."""
+    path.write_text(
+        json.dumps(snapshot.to_document(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )

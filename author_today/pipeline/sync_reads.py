@@ -94,6 +94,12 @@ def sync_reads_by_period(
         save_csv(table, output_csv)
         print(f"CSV: {output_csv}")
     if output_json:
-        save_json(table, output_json)
+        save_json(
+            table,
+            output_json,
+            work_id=settings.work_id,
+            period_start=period_start,
+            period_end=period_end,
+        )
         print(f"JSON: {output_json}")
     return table

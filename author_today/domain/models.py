@@ -54,3 +54,31 @@ class ReadSnapshot:
             chapters=tuple(chapters),
             values=tuple(values),
         )
+
+    def to_document(self) -> dict:
+        """
+        JSON-структура: массив dates, в каждой дате — главы и число просмотров.
+        """
+        dates_payload = []
+        for day_idx, day in enumerate(self.dates):
+            chapters_payload = []
+            for chapter_idx, chapter in enumerate(self.chapters):
+                chapters_payload.append(
+                    {
+                        "chapter": chapter,
+                        "views": self.values[chapter_idx][day_idx],
+                    }
+                )
+            dates_payload.append(
+                {
+                    "date": day.isoformat(),
+                    "chapters": chapters_payload,
+                }
+            )
+        return {
+            "work_id": self.work_id,
+            "period_start": self.period_start.isoformat(),
+            "period_end": self.period_end.isoformat(),
+            "fetched_at": self.fetched_at.isoformat(),
+            "dates": dates_payload,
+        }
