@@ -50,6 +50,14 @@ class Settings:
     auth_timeout: int = 120
     at_email: str | None = None
     at_password: str | None = None
+    mssql_connection_string: str | None = None
+    mssql_server: str | None = None
+    mssql_database: str | None = None
+    mssql_user: str | None = None
+    mssql_password: str | None = None
+    mssql_driver: str = "ODBC Driver 17 for SQL Server"
+    mssql_trusted_connection: bool = False
+    mssql_trust_server_certificate: bool = True
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -64,10 +72,31 @@ class Settings:
             auth_timeout=int(os.getenv("AT_AUTH_TIMEOUT", "120")),
             at_email=os.getenv("AT_EMAIL") or None,
             at_password=os.getenv("AT_PASSWORD") or None,
+            mssql_connection_string=os.getenv("MSSQL_CONNECTION_STRING") or None,
+            mssql_server=os.getenv("MSSQL_SERVER") or None,
+            mssql_database=os.getenv("MSSQL_DATABASE") or None,
+            mssql_user=os.getenv("MSSQL_USER") or None,
+            mssql_password=os.getenv("MSSQL_PASSWORD") or None,
+            mssql_driver=os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server"),
+            mssql_trusted_connection=os.getenv("MSSQL_TRUSTED_CONNECTION", "")
+            .lower()
+            in ("1", "true", "yes"),
+            mssql_trust_server_certificate=os.getenv("MSSQL_TRUST_SERVER_CERTIFICATE", "yes")
+            .lower()
+            not in ("0", "false", "no"),
         )
 
     def has_auto_login(self) -> bool:
         return bool(self.at_email and self.at_password)
+
+    def has_mssql(self) -> bool:
+        if self.mssql_connection_string:
+            return True
+        if not self.mssql_server or not self.mssql_database:
+            return False
+        if self.mssql_trusted_connection:
+            return True
+        return bool(self.mssql_user and self.mssql_password)
 
 
 def ensure_data_dirs() -> None:

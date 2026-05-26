@@ -36,6 +36,7 @@ def main() -> int:
     parser.add_argument("-o", "--output", type=Path, help="Сохранить CSV")
     parser.add_argument("--json", type=Path, help="Сохранить JSON")
     parser.add_argument("--no-raw", action="store_true", help="Не сохранять снимок в data/raw")
+    parser.add_argument("--no-mssql", action="store_true", help="Не сохранять в MS SQL")
     args = parser.parse_args()
 
     settings = Settings.from_env()
@@ -45,6 +46,14 @@ def main() -> int:
         print(f"Авторизация: ручная пауза {settings.wait_login_seconds} с")
     else:
         print("Авторизация: без .env — укажите --wait-login или AT_EMAIL/AT_PASSWORD")
+
+    if settings.has_mssql():
+        print("MS SQL: сохранение включено")
+    elif not args.no_mssql:
+        print("MS SQL: не настроен (см. .env.example)")
+
+    save_mssql = not args.no_mssql
+    save_raw = not args.no_raw
 
     if args.work_id is not None:
         settings.work_id = args.work_id
@@ -62,7 +71,8 @@ def main() -> int:
             table = sync_reads(
                 args.url,
                 settings,
-                save_raw=not args.no_raw,
+                save_raw=save_raw,
+                save_mssql=save_mssql,
             )
             if args.output:
                 from author_today.storage.export import save_csv
@@ -85,6 +95,8 @@ def main() -> int:
                 date.fromisoformat(args.end),
                 output_csv=args.output,
                 output_json=args.json,
+                save_raw=save_raw,
+                save_mssql=save_mssql,
             )
         else:
             url = settings.default_stats_url
@@ -94,7 +106,8 @@ def main() -> int:
                 settings,
                 period_start=settings.default_period_start,
                 period_end=settings.default_period_end,
-                save_raw=not args.no_raw,
+                save_raw=save_raw,
+                save_mssql=save_mssql,
             )
             if args.output:
                 from author_today.storage.export import save_csv

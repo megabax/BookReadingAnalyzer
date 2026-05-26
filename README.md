@@ -11,7 +11,7 @@ author_today/          # основной пакет
   browser/            # Selenium Chrome
   fetch/              # URL и загрузка страницы
   parse/              # парсер Kendo Grid
-  storage/            # экспорт CSV/JSON, SQLite — заготовка
+  storage/            # JSON, MS SQL (mssql_repo.py)
   analyze/            # сводки и reclan.csv
   pipeline/           # оркестратор sync_reads
   cli.py              # аргументы командной строки
@@ -19,7 +19,7 @@ author_today/          # основной пакет
 config/               # settings, books.yaml
 scripts/              # fetch_reads.py, report.py
 data/raw/             # снимки JSON
-data/db/              # SQLite (позже)
+scripts/init_mssql.py # создание таблиц в MS SQL
 legacy/               # старые эксперименты
 selenium_stats.py     # точка входа (как раньше)
 ```
@@ -54,6 +54,22 @@ python scripts/fetch_reads.py --start 2025-07-01 --end 2025-07-31 --wait-login 6
 
 Без `.env` — ручной вход: `python selenium_stats.py --wait-login 60`
 
+## MS SQL Server
+
+Таблицы:
+
+| Таблица | Назначение |
+|---------|------------|
+| `dbo.fetch_runs` | Снимок загрузки: work_id, период, время |
+| `dbo.chapter_reads` | Прочтения: дата, глава, views (структура `dates` из JSON) |
+
+```bat
+pip install -r requirements.txt
+python scripts/init_mssql.py
+python selenium_stats.py
+```
+
+Параметры в `.env` — см. `.env.example`. Отключить запись в БД: `--no-mssql`.
+
 ## Дальнейшие шаги
-- `author_today.storage.sqlite_repo` — история прочтений в БД
 - `scripts/report.py` — отчёты по накопленным данным
