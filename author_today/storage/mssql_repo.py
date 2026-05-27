@@ -30,13 +30,22 @@ class MssqlReadRepository:
         rows = self._chapter_rows(snapshot)
         with connect(self.settings) as conn:
             cursor = conn.cursor()
+            # Book must exist for FK fetch_runs.work_id -> books.id
+            cursor.execute(
+                """
+                IF NOT EXISTS (SELECT 1 FROM dbo.books WHERE id = ?)
+                    INSERT INTO dbo.books (id) VALUES (?)
+                """,
+                snapshot.book_id,
+                snapshot.book_id,
+            )
             cursor.execute(
                 """
                 INSERT INTO dbo.fetch_runs (work_id, period_start, period_end, fetched_at)
                 OUTPUT INSERTED.id
                 VALUES (?, ?, ?, ?)
                 """,
-                snapshot.work_id,
+                snapshot.book_id,
                 snapshot.period_start,
                 snapshot.period_end,
                 snapshot.fetched_at,
@@ -55,7 +64,7 @@ class MssqlReadRepository:
             conn.commit()
             return run_id
 
-    def list_runs(self, work_id: int, *, limit: int = 20) -> list[dict]:
+    def list_runs(self, book_id: int, *, limit: int = 20) -> list[dict]:
         with connect(self.settings) as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -66,7 +75,7 @@ class MssqlReadRepository:
                 ORDER BY fetched_at DESC
                 """,
                 limit,
-                work_id,
+                book_id,
             )
             columns = [col[0] for col in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]

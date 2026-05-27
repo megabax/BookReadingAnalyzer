@@ -21,7 +21,7 @@ def summary_from_snapshot(snapshot: ReadSnapshot) -> dict:
         totals.append((chapter, sum(v or 0 for v in row)))
     top = sorted(totals, key=lambda x: x[1], reverse=True)[:10]
     return {
-        "work_id": snapshot.work_id,
+        "book_id": snapshot.book_id,
         "period": f"{snapshot.period_start} — {snapshot.period_end}",
         "top_chapters": top,
     }

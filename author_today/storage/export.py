@@ -35,7 +35,7 @@ def save_json(
     table: StatsTable,
     path: Path,
     *,
-    work_id: int,
+    book_id: int,
     period_start: date,
     period_end: date,
     fetched_at: datetime | None = None,
@@ -43,7 +43,7 @@ def save_json(
     """Сохранить JSON: dates[] → { date, chapters[] → { chapter, views } }."""
     snapshot = ReadSnapshot.from_stats_table(
         table,
-        work_id=work_id,
+        book_id=book_id,
         period_start=period_start,
         period_end=period_end,
         fetched_at=fetched_at,

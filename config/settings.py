@@ -41,7 +41,7 @@ class Settings:
     default_stats_url: str = DEFAULT_STATS_URL
     default_period_start: date = DEFAULT_PERIOD_START
     default_period_end: date = DEFAULT_PERIOD_END
-    work_id: int = 323389
+    book_id: int = 323389
     value_type: str = "hit"
     chrome_user_data_dir: str | None = None
     headless: bool = False
@@ -63,7 +63,7 @@ class Settings:
     def from_env(cls) -> Settings:
         load_dotenv()
         return cls(
-            work_id=int(os.getenv("AT_WORK_ID", "323389")),
+            book_id=int(os.getenv("AT_WORK_ID", "323389")),
             value_type=os.getenv("AT_VALUE_TYPE", "hit"),
             chrome_user_data_dir=os.getenv("CHROME_USER_DATA_DIR") or None,
             headless=os.getenv("AT_HEADLESS", "").lower() in ("1", "true", "yes"),

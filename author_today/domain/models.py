@@ -16,7 +16,7 @@ class StatsTable:
 class ReadSnapshot:
     """Нормализованный снимок прочтений для хранения и анализа."""
 
-    work_id: int
+    book_id: int
     period_start: date
     period_end: date
     fetched_at: datetime
@@ -29,7 +29,7 @@ class ReadSnapshot:
         cls,
         table: StatsTable,
         *,
-        work_id: int,
+        book_id: int,
         period_start: date,
         period_end: date,
         fetched_at: datetime | None = None,
@@ -46,7 +46,7 @@ class ReadSnapshot:
                 tuple(row.get(d) for d in table.dates)  # type: ignore[misc]
             )
         return cls(
-            work_id=work_id,
+            book_id=book_id,
             period_start=period_start,
             period_end=period_end,
             fetched_at=fetched_at or datetime.now(),
@@ -76,7 +76,7 @@ class ReadSnapshot:
                 }
             )
         return {
-            "work_id": self.work_id,
+            "book_id": self.book_id,
             "period_start": self.period_start.isoformat(),
             "period_end": self.period_end.isoformat(),
             "fetched_at": self.fetched_at.isoformat(),

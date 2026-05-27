@@ -18,7 +18,7 @@ def persist_snapshot(
     """Сохранить снимок в data/raw и MS SQL (если настроено)."""
     if save_raw:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        raw_path = RAW_DIR / f"reads_{snapshot.work_id}_{stamp}.json"
+        raw_path = RAW_DIR / f"reads_{snapshot.book_id}_{stamp}.json"
         save_snapshot_raw(snapshot, raw_path)
         print(f"JSON: {raw_path}")
 
@@ -37,7 +37,7 @@ def snapshot_from_table(
 ) -> ReadSnapshot:
     return ReadSnapshot.from_stats_table(
         table,
-        work_id=settings.work_id,
+        book_id=settings.book_id,
         period_start=period_start,
         period_end=period_end,
     )

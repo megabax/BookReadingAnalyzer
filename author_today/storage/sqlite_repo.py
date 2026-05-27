@@ -13,5 +13,5 @@ class SqliteReadRepository:
     def save_snapshot(self, snapshot: ReadSnapshot) -> int:
         raise NotImplementedError("SQLite-репозиторий будет добавлен позже.")
 
-    def list_runs(self, work_id: int) -> list[dict]:
+    def list_runs(self, book_id: int) -> list[dict]:
         raise NotImplementedError("SQLite-репозиторий будет добавлен позже.")

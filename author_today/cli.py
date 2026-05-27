@@ -56,7 +56,7 @@ def main() -> int:
     save_raw = not args.no_raw
 
     if args.work_id is not None:
-        settings.work_id = args.work_id
+        settings.book_id = args.work_id
     if args.wait_login is not None:
         settings.wait_login_seconds = args.wait_login
     if args.timeout is not None:
@@ -84,7 +84,7 @@ def main() -> int:
                 save_json(
                     table,
                     args.json,
-                    work_id=settings.work_id,
+                    book_id=settings.book_id,
                     period_start=settings.default_period_start,
                     period_end=settings.default_period_end,
                 )
@@ -119,7 +119,7 @@ def main() -> int:
                 save_json(
                     table,
                     args.json,
-                    work_id=settings.work_id,
+                    book_id=settings.book_id,
                     period_start=settings.default_period_start,
                     period_end=settings.default_period_end,
                 )

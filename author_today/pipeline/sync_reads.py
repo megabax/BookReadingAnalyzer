@@ -76,7 +76,7 @@ def sync_reads_by_period(
     save_mssql: bool = True,
 ) -> StatsTable:
     url = build_stats_url(
-        settings.work_id,
+        settings.book_id,
         period_start,
         period_end,
         value_type=settings.value_type,
@@ -97,7 +97,7 @@ def sync_reads_by_period(
         save_json(
             table,
             output_json,
-            work_id=settings.work_id,
+            book_id=settings.book_id,
             period_start=period_start,
             period_end=period_end,
         )
