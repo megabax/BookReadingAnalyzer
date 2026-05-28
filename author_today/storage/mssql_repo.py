@@ -56,10 +56,13 @@ class MssqlReadRepository:
                 cursor.fast_executemany = True
                 cursor.executemany(
                     """
-                    INSERT INTO dbo.chapter_reads (run_id, read_date, chapter_name, views)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO dbo.chapter_reads (run_id, read_date, chapter_order, chapter_name, views)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
-                    [(run_id, read_date, chapter, views) for read_date, chapter, views in rows],
+                    [
+                        (run_id, read_date, chapter_order, chapter, views)
+                        for read_date, chapter_order, chapter, views in rows
+                    ],
                 )
             conn.commit()
             return run_id
@@ -85,7 +88,14 @@ class MssqlReadRepository:
         rows: list[tuple] = []
         for day_idx, read_date in enumerate(snapshot.dates):
             for chapter_idx, chapter in enumerate(snapshot.chapters):
-                rows.append((read_date, chapter, snapshot.values[chapter_idx][day_idx]))
+                rows.append(
+                    (
+                        read_date,
+                        chapter_idx + 1,  # порядок главы ровно как на сайте
+                        chapter,
+                        snapshot.values[chapter_idx][day_idx],
+                    )
+                )
         return rows
 
 

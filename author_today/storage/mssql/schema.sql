@@ -37,6 +37,7 @@ BEGIN
     CREATE TABLE dbo.chapter_reads (
         run_id       BIGINT NOT NULL,
         read_date    DATE NOT NULL,
+        chapter_order INT NOT NULL, -- порядок главы на сайте (1..N)
         chapter_name NVARCHAR(500) NOT NULL,
         views        INT NULL,
         CONSTRAINT PK_chapter_reads PRIMARY KEY CLUSTERED (run_id, read_date, chapter_name),
@@ -46,5 +47,12 @@ BEGIN
 
     CREATE INDEX IX_chapter_reads_read_date
         ON dbo.chapter_reads (read_date, chapter_name);
+END
+GO
+
+-- Миграция для уже существующей таблицы
+IF COL_LENGTH('dbo.chapter_reads', 'chapter_order') IS NULL
+BEGIN
+    ALTER TABLE dbo.chapter_reads ADD chapter_order INT NULL;
 END
 GO
