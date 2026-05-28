@@ -5,14 +5,13 @@ from pathlib import Path
 
 from selenium.common.exceptions import TimeoutException
 
-from author_today.analyze.reads import summary_from_table
 from author_today.auth.manual import ManualAuthProvider
 from author_today.auth.selenium_login import SeleniumLoginProvider
 from author_today.browser.factory import create_driver
 from author_today.domain.models import StatsTable
 from author_today.fetch.stats_page import load_stats_table
 from author_today.fetch.stats_url import build_stats_url
-from author_today.storage.export import print_table, save_csv, save_json
+from author_today.storage.export import save_csv, save_json
 from author_today.storage.persist import persist_snapshot, snapshot_from_table
 from config.settings import Settings, ensure_data_dirs
 
@@ -46,8 +45,6 @@ def sync_reads(
 
     try:
         table = load_stats_table(driver, url, auth, timeout=settings.page_timeout)
-        print_table(table)
-        print(summary_from_table(table))
 
         if period_start and period_end and (save_raw or save_mssql):
             snapshot = snapshot_from_table(
@@ -81,7 +78,6 @@ def sync_reads_by_period(
         period_end,
         value_type=settings.value_type,
     )
-    print(f"URL: {url}")
     table = sync_reads(
         url,
         settings,
@@ -92,7 +88,6 @@ def sync_reads_by_period(
     )
     if output_csv:
         save_csv(table, output_csv)
-        print(f"CSV: {output_csv}")
     if output_json:
         save_json(
             table,
@@ -101,5 +96,4 @@ def sync_reads_by_period(
             period_start=period_start,
             period_end=period_end,
         )
-        print(f"JSON: {output_json}")
     return table

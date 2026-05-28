@@ -40,17 +40,6 @@ def main() -> int:
     args = parser.parse_args()
 
     settings = Settings.from_env()
-    if settings.has_auto_login():
-        print("Авторизация: автоматически (AT_EMAIL / AT_PASSWORD из .env)")
-    elif settings.wait_login_seconds:
-        print(f"Авторизация: ручная пауза {settings.wait_login_seconds} с")
-    else:
-        print("Авторизация: без .env — укажите --wait-login или AT_EMAIL/AT_PASSWORD")
-
-    if settings.has_mssql():
-        print("MS SQL: сохранение включено")
-    elif not args.no_mssql:
-        print("MS SQL: не настроен (см. .env.example)")
 
     save_mssql = not args.no_mssql
     save_raw = not args.no_raw
@@ -100,7 +89,6 @@ def main() -> int:
             )
         else:
             url = settings.default_stats_url
-            print(f"URL (по умолчанию): {url}")
             table = sync_reads(
                 url,
                 settings,
