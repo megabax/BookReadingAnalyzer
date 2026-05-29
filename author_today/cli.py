@@ -40,6 +40,17 @@ def main() -> int:
     args = parser.parse_args()
 
     settings = Settings.from_env()
+    if settings.has_auto_login():
+        print("Авторизация: автоматически (AT_EMAIL / AT_PASSWORD из .env)")
+    elif settings.wait_login_seconds:
+        print(f"Авторизация: ручная пауза {settings.wait_login_seconds} с")
+    else:
+        print("Авторизация: без .env — укажите --wait-login или AT_EMAIL/AT_PASSWORD")
+
+    if settings.has_mssql():
+        print("MS SQL: сохранение включено")
+    elif not args.no_mssql:
+        print("MS SQL: не настроен (см. .env.example)")
 
     save_mssql = not args.no_mssql
     save_raw = not args.no_raw
@@ -88,29 +99,15 @@ def main() -> int:
                 save_mssql=save_mssql,
             )
         else:
-            url = settings.default_stats_url
-            table = sync_reads(
-                url,
+            sync_reads_by_period(
                 settings,
-                period_start=settings.default_period_start,
-                period_end=settings.default_period_end,
+                settings.default_period_start,
+                settings.default_period_end,
+                output_csv=args.output,
+                output_json=args.json,
                 save_raw=save_raw,
                 save_mssql=save_mssql,
             )
-            if args.output:
-                from author_today.storage.export import save_csv
-
-                save_csv(table, args.output)
-            if args.json:
-                from author_today.storage.export import save_json
-
-                save_json(
-                    table,
-                    args.json,
-                    book_id=settings.book_id,
-                    period_start=settings.default_period_start,
-                    period_end=settings.default_period_end,
-                )
         return 0
     except (TimeoutException, RuntimeError, NotImplementedError) as e:
         print(f"Ошибка: {e}", file=sys.stderr)

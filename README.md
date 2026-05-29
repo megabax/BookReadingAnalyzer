@@ -71,5 +71,15 @@ python selenium_stats.py
 
 Параметры в `.env` — см. `.env.example`. Отключить запись в БД: `--no-mssql`.
 
+## Воронка по главам
+
+Сумма просмотров за период по `chapter_order`, доля от первой главы и от предыдущей:
+
+```bat
+python scripts/report_funnel.py --book-id 323389 --start 2025-07-01 --end 2025-07-31
+python scripts/report_funnel.py --json data/raw/reads_323389_....json -o funnel.csv
+python scripts/report_funnel.py --skip-book-page
+```
+
 ## Дальнейшие шаги
-- `scripts/report.py` — отчёты по накопленным данным
+- `scripts/report.py` — прочие отчёты
