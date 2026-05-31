@@ -1,6 +1,7 @@
 from author_today.analyze.funnel import (
     FunnelStep,
     build_funnel,
+    default_funnel_csv_path,
     funnel_from_json,
     funnel_from_mssql,
     print_funnel,
@@ -15,6 +16,7 @@ __all__ = [
     "load_sales_csv",
     "FunnelStep",
     "build_funnel",
+    "default_funnel_csv_path",
     "funnel_from_json",
     "funnel_from_mssql",
     "print_funnel",

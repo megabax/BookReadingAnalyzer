@@ -77,9 +77,14 @@ python selenium_stats.py
 
 ```bat
 python scripts/report_funnel.py --book-id 323389 --start 2025-07-01 --end 2025-07-31
+python scripts/report_funnel.py --json data/raw/reads_323389_....json --csv
 python scripts/report_funnel.py --json data/raw/reads_323389_....json -o funnel.csv
-python scripts/report_funnel.py --skip-book-page
+python scripts/report_funnel.py --skip-book-page --csv
 ```
+
+Флаг `--csv` / `-o` сохраняет таблицу в CSV (разделитель `;`, UTF-8 с BOM для Excel). Без имени файла — `data/reports/funnel_<book_id>_<start>_<end>.csv`.
 
 ## Дальнейшие шаги
 - `scripts/report.py` — прочие отчёты
+
+172953

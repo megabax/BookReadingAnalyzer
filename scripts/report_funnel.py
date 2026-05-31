@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -13,6 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from author_today.analyze.funnel import (
+    default_funnel_csv_path,
     funnel_from_json,
     funnel_from_mssql,
     print_funnel,
@@ -32,7 +34,18 @@ def main() -> int:
         action="store_true",
         help="Не включать «Страница книги» в воронку",
     )
-    parser.add_argument("-o", "--output", type=Path, help="Сохранить CSV")
+    parser.add_argument(
+        "-o",
+        "--output",
+        "--csv",
+        dest="csv",
+        nargs="?",
+        const=Path(""),
+        default=None,
+        type=Path,
+        metavar="PATH",
+        help="Сохранить воронку в CSV (без PATH — data/reports/funnel_<book>_<start>_<end>.csv)",
+    )
     args = parser.parse_args()
 
     settings = Settings.from_env()
@@ -41,6 +54,13 @@ def main() -> int:
     period_end = date.fromisoformat(args.end) if args.end else settings.default_period_end
 
     if args.json:
+        json_data = json.loads(args.json.read_text(encoding="utf-8"))
+        if args.book_id is None and json_data.get("book_id") is not None:
+            book_id = int(json_data["book_id"])
+        if not args.start and json_data.get("period_start"):
+            period_start = date.fromisoformat(str(json_data["period_start"])[:10])
+        if not args.end and json_data.get("period_end"):
+            period_end = date.fromisoformat(str(json_data["period_end"])[:10])
         steps = funnel_from_json(args.json, skip_book_page=args.skip_book_page)
         print_funnel(
             steps,
@@ -65,9 +85,12 @@ def main() -> int:
         )
         return 1
 
-    if args.output:
-        save_funnel_csv(steps, args.output)
-        print(f"CSV: {args.output}")
+    if args.csv is not None:
+        csv_path = args.csv if args.csv.name else default_funnel_csv_path(
+            book_id, period_start, period_end
+        )
+        saved = save_funnel_csv(steps, csv_path)
+        print(f"CSV: {saved}")
 
     return 0
 

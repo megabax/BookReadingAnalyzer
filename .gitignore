@@ -12,3 +12,4 @@ reclan.csv
 materials/
 info.txt
 grid.html
+data/reports/*.csv

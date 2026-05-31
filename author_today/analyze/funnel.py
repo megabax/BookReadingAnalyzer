@@ -29,6 +29,17 @@ def _pct(part: int, whole: int) -> float:
     return round(100.0 * part / whole, 1)
 
 
+def default_funnel_csv_path(
+    book_id: int,
+    period_start: date,
+    period_end: date,
+    *,
+    reports_dir: Path = Path("data/reports"),
+) -> Path:
+    name = f"funnel_{book_id}_{period_start:%Y%m%d}_{period_end:%Y%m%d}.csv"
+    return reports_dir / name
+
+
 def build_funnel(
     rows: list[tuple[int, str, int]],
     *,
@@ -181,17 +192,19 @@ def print_funnel(
     )
 
 
-def save_funnel_csv(steps: list[FunnelStep], path: Path) -> None:
+def save_funnel_csv(steps: list[FunnelStep], path: Path) -> Path:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.writer(f, delimiter=";")
         writer.writerow(
             [
-                "chapter_order",
-                "chapter_name",
-                "total_views",
-                "pct_of_first",
-                "pct_of_previous",
-                "drop_from_previous",
+                "№",
+                "Глава",
+                "Просмотры",
+                "% от 1-й",
+                "% от пред.",
+                "Падение",
             ]
         )
         for step in steps:
@@ -205,3 +218,4 @@ def save_funnel_csv(steps: list[FunnelStep], path: Path) -> None:
                     step.drop_from_previous if step.drop_from_previous is not None else "",
                 ]
             )
+    return path
