@@ -192,6 +192,11 @@ def print_funnel(
     )
 
 
+def _fmt_decimal(value: float, places: int = 1) -> str:
+    """Дробная часть через запятую (для Excel в ru-RU)."""
+    return f"{value:.{places}f}".replace(".", ",")
+
+
 def save_funnel_csv(steps: list[FunnelStep], path: Path) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -208,13 +213,18 @@ def save_funnel_csv(steps: list[FunnelStep], path: Path) -> Path:
             ]
         )
         for step in steps:
+            pct_prev = (
+                _fmt_decimal(step.pct_of_previous)
+                if step.pct_of_previous is not None
+                else ""
+            )
             writer.writerow(
                 [
                     step.chapter_order,
                     step.chapter_name,
                     step.total_views,
-                    step.pct_of_first,
-                    step.pct_of_previous if step.pct_of_previous is not None else "",
+                    _fmt_decimal(step.pct_of_first),
+                    pct_prev,
                     step.drop_from_previous if step.drop_from_previous is not None else "",
                 ]
             )
