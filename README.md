@@ -71,6 +71,13 @@ python selenium_stats.py
 
 Параметры в `.env` — см. `.env.example`. Отключить запись в БД: `--no-mssql`.
 
+Удалить ошибочно загруженные дубли из БД:
+
+```bat
+python scripts/delete_runs.py --work-id 323389 --fetched-from 2026-06-02T09:00:00 --fetched-to 2026-06-02T10:00:00 --dry-run
+python scripts/delete_runs.py --work-id 323389 --fetched-from 2026-06-02T09:00:00 --fetched-to 2026-06-02T10:00:00 --yes
+```
+
 ## Воронка по главам
 
 Сумма просмотров за период по `chapter_order`, доля от первой главы и от предыдущей:
