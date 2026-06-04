@@ -15,7 +15,8 @@ from config.settings import Settings
 
 @dataclass(frozen=True)
 class FunnelStep:
-    chapter_order: int
+    step_num: int  # порядковый номер в воронке (1..N)
+    site_chapter_order: int  # chapter_order на сайте / в БД
     chapter_name: str
     total_views: int
     pct_of_first: float
@@ -27,6 +28,12 @@ def _pct(part: int, whole: int) -> float:
     if whole <= 0:
         return 0.0
     return round(100.0 * part / whole, 1)
+
+
+def _pct_column_label(baseline_chapter_order: int | None) -> str:
+    if baseline_chapter_order is None:
+        return "% от 1-й"
+    return f"% от гл.{baseline_chapter_order}"
 
 
 def default_funnel_csv_path(
@@ -44,10 +51,12 @@ def build_funnel(
     rows: list[tuple[int, str, int]],
     *,
     skip_book_page: bool = False,
+    baseline_chapter_order: int | None = None,
 ) -> list[FunnelStep]:
     """
     Построить воронку из (chapter_order, chapter_name, total_views).
     rows должны быть отсортированы по chapter_order.
+    baseline_chapter_order — с какой главы (по порядку на сайте) считать 100%% для «% от 1-й».
     """
     filtered: list[tuple[int, str, int]] = []
     for order, name, views in sorted(rows, key=lambda r: r[0]):
@@ -58,16 +67,30 @@ def build_funnel(
     if not filtered:
         return []
 
-    first_views = filtered[0][2]
+    if baseline_chapter_order is not None:
+        baseline_views = next(
+            (views for order, _name, views in filtered if order == baseline_chapter_order),
+            None,
+        )
+        if baseline_views is None:
+            available = ", ".join(str(order) for order, _n, _v in filtered)
+            raise ValueError(
+                f"Глава с chapter_order={baseline_chapter_order} не найдена. "
+                f"Доступные порядки: {available}"
+            )
+        first_views = baseline_views
+    else:
+        first_views = filtered[0][2]
     steps: list[FunnelStep] = []
     prev_views: int | None = None
 
-    for step_num, (_order, name, views) in enumerate(filtered, start=1):
+    for step_num, (site_order, name, views) in enumerate(filtered, start=1):
         pct_prev = _pct(views, prev_views) if prev_views is not None else None
         drop = (prev_views - views) if prev_views is not None else None
         steps.append(
             FunnelStep(
-                chapter_order=step_num,
+                step_num=step_num,
+                site_chapter_order=site_order,
                 chapter_name=name,
                 total_views=views,
                 pct_of_first=_pct(views, first_views),
@@ -84,16 +107,26 @@ def funnel_from_snapshot(
     snapshot: ReadSnapshot,
     *,
     skip_book_page: bool = False,
+    baseline_chapter_order: int | None = None,
 ) -> list[FunnelStep]:
     totals: list[tuple[int, str, int]] = []
     for idx, chapter in enumerate(snapshot.chapters):
         order = idx + 1
         views = sum(v or 0 for v in snapshot.values[idx])
         totals.append((order, chapter, views))
-    return build_funnel(totals, skip_book_page=skip_book_page)
+    return build_funnel(
+        totals,
+        skip_book_page=skip_book_page,
+        baseline_chapter_order=baseline_chapter_order,
+    )
 
 
-def funnel_from_json(path: Path, *, skip_book_page: bool = False) -> list[FunnelStep]:
+def funnel_from_json(
+    path: Path,
+    *,
+    skip_book_page: bool = False,
+    baseline_chapter_order: int | None = None,
+) -> list[FunnelStep]:
     data = json.loads(path.read_text(encoding="utf-8"))
     totals: dict[str, int] = {}
     chapter_names: list[str] = []
@@ -109,7 +142,11 @@ def funnel_from_json(path: Path, *, skip_book_page: bool = False) -> list[Funnel
                 chapter_names.append(name)
 
     rows = [(idx + 1, name, totals[name]) for idx, name in enumerate(chapter_names)]
-    return build_funnel(rows, skip_book_page=skip_book_page)
+    return build_funnel(
+        rows,
+        skip_book_page=skip_book_page,
+        baseline_chapter_order=baseline_chapter_order,
+    )
 
 
 def funnel_from_mssql(
@@ -119,6 +156,7 @@ def funnel_from_mssql(
     period_end: date,
     *,
     skip_book_page: bool = False,
+    baseline_chapter_order: int | None = None,
 ) -> list[FunnelStep]:
     sql = """
         SELECT
@@ -137,7 +175,11 @@ def funnel_from_mssql(
         cursor = conn.cursor()
         cursor.execute(sql, book_id, period_start, period_end)
         rows = [(int(r[0]), str(r[1]), int(r[2])) for r in cursor.fetchall()]
-    return build_funnel(rows, skip_book_page=skip_book_page)
+    return build_funnel(
+        rows,
+        skip_book_page=skip_book_page,
+        baseline_chapter_order=baseline_chapter_order,
+    )
 
 
 def print_funnel(
@@ -147,20 +189,24 @@ def print_funnel(
     period_start: date | None = None,
     period_end: date | None = None,
     title: str = "Воронка прочтений по главам",
+    baseline_chapter_order: int | None = None,
 ) -> None:
     if book_id is not None and period_start and period_end:
         print(f"{title} | book_id={book_id} | {period_start} — {period_end}")
     else:
         print(title)
+    if baseline_chapter_order is not None:
+        print(f"100%: chapter_order={baseline_chapter_order}")
     print()
 
     if not steps:
         print("Нет данных для воронки.")
         return
 
+    pct_col = _pct_column_label(baseline_chapter_order)
     header = (
         f"{'#':>4}  {'Глава':<28}  {'Просмотры':>10}  "
-        f"{'% от 1-й':>9}  {'% от пред.':>11}  {'Падение':>8}"
+        f"{pct_col:>12}  {'% от пред.':>11}  {'Падение':>8}"
     )
     print(header)
     print("-" * len(header))
@@ -179,16 +225,28 @@ def print_funnel(
         if len(name) > 28:
             name = name[:25] + "..."
         print(
-            f"{step.chapter_order:>4}  {name:<28}  {step.total_views:>10}  "
+            f"{step.step_num:>4}  {name:<28}  {step.total_views:>10}  "
             f"{step.pct_of_first:>8.1f}%  {pct_prev}  {drop}"
         )
 
     print()
     print(f"Шагов воронки: {len(steps)}")
+    if baseline_chapter_order is not None:
+        baseline_step = next(
+            (s for s in steps if s.site_chapter_order == baseline_chapter_order),
+            None,
+        )
+        baseline_note = (
+            f"база гл.{baseline_chapter_order} ({baseline_step.total_views} просм.)"
+            if baseline_step
+            else f"база гл.{baseline_chapter_order}"
+        )
+    else:
+        baseline_note = "первая глава"
     print(
-        f"Просмотры: первая глава {steps[0].total_views}, "
+        f"Просмотры: {baseline_note}, "
         f"последняя {steps[-1].total_views} "
-        f"({steps[-1].pct_of_first:.1f}% от первой)"
+        f"({steps[-1].pct_of_first:.1f}% от базы)"
     )
 
 
@@ -197,17 +255,24 @@ def _fmt_decimal(value: float, places: int = 1) -> str:
     return f"{value:.{places}f}".replace(".", ",")
 
 
-def save_funnel_csv(steps: list[FunnelStep], path: Path) -> Path:
+def save_funnel_csv(
+    steps: list[FunnelStep],
+    path: Path,
+    *,
+    baseline_chapter_order: int | None = None,
+) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    pct_col = _pct_column_label(baseline_chapter_order)
     with path.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.writer(f, delimiter=";")
         writer.writerow(
             [
                 "№",
+                "chapter_order",
                 "Глава",
                 "Просмотры",
-                "% от 1-й",
+                pct_col,
                 "% от пред.",
                 "Падение",
             ]
@@ -220,7 +285,8 @@ def save_funnel_csv(steps: list[FunnelStep], path: Path) -> Path:
             )
             writer.writerow(
                 [
-                    step.chapter_order,
+                    step.step_num,
+                    step.site_chapter_order,
                     step.chapter_name,
                     step.total_views,
                     _fmt_decimal(step.pct_of_first),

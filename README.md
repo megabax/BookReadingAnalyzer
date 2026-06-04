@@ -80,14 +80,16 @@ python scripts/delete_runs.py --work-id 323389 --fetched-from 2026-06-02T09:00:0
 
 ## Воронка по главам
 
-Сумма просмотров за период по `chapter_order`, доля от первой главы и от предыдущей:
+Сумма просмотров за период по `chapter_order`, доля от базовой главы и от предыдущей:
 
 ```bat
 python scripts/report_funnel.py --book-id 323389 --start 2025-07-01 --end 2025-07-31
 python scripts/report_funnel.py --json data/raw/reads_323389_....json --csv
-python scripts/report_funnel.py --json data/raw/reads_323389_....json -o funnel.csv
-python scripts/report_funnel.py --skip-book-page --csv
+python scripts/report_funnel.py --skip-book-page --base-order 2 --csv
+python scripts/report_funnel.py --book-id 323389 --base-order 2 --start 2025-07-01 --end 2025-07-31
 ```
+
+`--base-order N` — 100% считается от главы с `chapter_order=N` (порядок на сайте / в БД). Без флага — от первой главы воронки.
 
 Флаг `--csv` / `-o` сохраняет таблицу в CSV (разделитель `;`, UTF-8 с BOM для Excel). Без имени файла — `data/reports/funnel_<book_id>_<start>_<end>.csv`.
 

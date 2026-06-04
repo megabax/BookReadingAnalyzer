@@ -35,6 +35,12 @@ def main() -> int:
         help="Не включать «Страница книги» в воронку",
     )
     parser.add_argument(
+        "--base-order",
+        type=int,
+        metavar="N",
+        help="chapter_order главы, от которой считать 100%% (по умолчанию — первая в воронке)",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         "--csv",
@@ -52,44 +58,61 @@ def main() -> int:
     book_id = args.book_id if args.book_id is not None else settings.book_id
     period_start = date.fromisoformat(args.start) if args.start else settings.default_period_start
     period_end = date.fromisoformat(args.end) if args.end else settings.default_period_end
+    baseline = args.base_order
 
-    if args.json:
-        json_data = json.loads(args.json.read_text(encoding="utf-8"))
-        if args.book_id is None and json_data.get("book_id") is not None:
-            book_id = int(json_data["book_id"])
-        if not args.start and json_data.get("period_start"):
-            period_start = date.fromisoformat(str(json_data["period_start"])[:10])
-        if not args.end and json_data.get("period_end"):
-            period_end = date.fromisoformat(str(json_data["period_end"])[:10])
-        steps = funnel_from_json(args.json, skip_book_page=args.skip_book_page)
-        print_funnel(
-            steps,
-            book_id=book_id,
-            period_start=period_start,
-            period_end=period_end,
-            title=f"Воронка (из файла {args.json.name})",
-        )
-    elif settings.has_mssql():
-        steps = funnel_from_mssql(
-            settings,
-            book_id,
-            period_start,
-            period_end,
-            skip_book_page=args.skip_book_page,
-        )
-        print_funnel(steps, book_id=book_id, period_start=period_start, period_end=period_end)
-    else:
-        print(
-            "Ошибка: укажите --json или настройте MS SQL в .env",
-            file=sys.stderr,
-        )
+    try:
+        if args.json:
+            json_data = json.loads(args.json.read_text(encoding="utf-8"))
+            if args.book_id is None and json_data.get("book_id") is not None:
+                book_id = int(json_data["book_id"])
+            if not args.start and json_data.get("period_start"):
+                period_start = date.fromisoformat(str(json_data["period_start"])[:10])
+            if not args.end and json_data.get("period_end"):
+                period_end = date.fromisoformat(str(json_data["period_end"])[:10])
+            steps = funnel_from_json(
+                args.json,
+                skip_book_page=args.skip_book_page,
+                baseline_chapter_order=baseline,
+            )
+            print_funnel(
+                steps,
+                book_id=book_id,
+                period_start=period_start,
+                period_end=period_end,
+                title=f"Воронка (из файла {args.json.name})",
+                baseline_chapter_order=baseline,
+            )
+        elif settings.has_mssql():
+            steps = funnel_from_mssql(
+                settings,
+                book_id,
+                period_start,
+                period_end,
+                skip_book_page=args.skip_book_page,
+                baseline_chapter_order=baseline,
+            )
+            print_funnel(
+                steps,
+                book_id=book_id,
+                period_start=period_start,
+                period_end=period_end,
+                baseline_chapter_order=baseline,
+            )
+        else:
+            print(
+                "Ошибка: укажите --json или настройте MS SQL в .env",
+                file=sys.stderr,
+            )
+            return 1
+    except ValueError as e:
+        print(f"Ошибка: {e}", file=sys.stderr)
         return 1
 
     if args.csv is not None:
         csv_path = args.csv if args.csv.name else default_funnel_csv_path(
             book_id, period_start, period_end
         )
-        saved = save_funnel_csv(steps, csv_path)
+        saved = save_funnel_csv(steps, csv_path, baseline_chapter_order=baseline)
         print(f"CSV: {saved}")
 
     return 0
