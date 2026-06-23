@@ -93,6 +93,22 @@ python scripts/report_funnel.py --book-id 323389 --base-order 2 --start 2025-07-
 
 Флаг `--csv` / `-o` сохраняет таблицу в CSV (разделитель `;`, UTF-8 с BOM для Excel). Без имени файла — `data/reports/funnel_<book_id>_<start>_<end>.csv`.
 
+## Сравнение двух воронок (период A vs B)
+
+По каждому дню и главе: % просмотров от базовой главы; по периоду — среднее **μ** и **σ** (по дням), для каждой главы — **p-value** (Welch t-test, двусторонний).
+
+```bat
+python scripts/report_funnel_compare.py --book-id 323389 --base-order 2 ^
+  --start-a 2025-07-01 --end-a 2025-07-31 ^
+  --start-b 2025-08-01 --end-b 2025-08-31 --skip-book-page --csv
+
+python scripts/report_funnel_compare.py --base-order 2 ^
+  --start-a 2025-07-01 --end-a 2025-07-31 --start-b 2025-08-01 --end-b 2025-08-31 ^
+  --json-a data/raw/reads_a.json --json-b data/raw/reads_b.json
+```
+
+`*` в консоли — p < 0,05 (различие средних дневных % значимо).
+
 ## Дальнейшие шаги
 - `scripts/report.py` — прочие отчёты
 
