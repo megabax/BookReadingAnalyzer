@@ -1,0 +1,24 @@
+{
+  "book_id": 1,
+  "period_start": "2025-07-01",
+  "period_end": "2025-07-02",
+  "fetched_at": "2026-01-01T12:00:00",
+  "dates": [
+    {
+      "date": "2025-07-01",
+      "chapters": [
+        { "chapter": "Страница книги", "views": 100 },
+        { "chapter": "Глава 1", "views": 80 },
+        { "chapter": "Глава 2", "views": 40 }
+      ]
+    },
+    {
+      "date": "2025-07-02",
+      "chapters": [
+        { "chapter": "Страница книги", "views": 50 },
+        { "chapter": "Глава 1", "views": 50 },
+        { "chapter": "Глава 2", "views": 25 }
+      ]
+    }
+  ]
+}

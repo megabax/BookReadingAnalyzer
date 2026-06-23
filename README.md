@@ -30,7 +30,10 @@ selenium_stats.py     # точка входа (как раньше)
 python -m venv venv
 venv\Scripts\activate.bat
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
+
+Тесты: `pytest` (см. [`docs/testing_strategy.md`](docs/testing_strategy.md)).
 
 ## Запуск
 
@@ -111,5 +114,6 @@ python scripts/report_funnel_compare.py --base-order 2 ^
 
 ## Дальнейшие шаги
 - `scripts/report.py` — прочие отчёты
+- [`refactoring_plan.md`](refactoring_plan.md) и [`docs/`](docs/README.md) — план и документация перед рефакторингом
 
 172953

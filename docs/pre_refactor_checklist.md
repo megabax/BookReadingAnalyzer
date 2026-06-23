@@ -1,0 +1,85 @@
+# Чеклист перед рефакторингом
+
+Использовать **перед началом каждой фазы** из [`refactoring_plan.md`](../refactoring_plan.md).
+
+## Общий чеклист (один раз)
+
+- [ ] Прочитаны: glossary, architecture_baseline, data_contracts, known_issues, decisions
+- [ ] Текущая ветка закоммичена или создана ветка `refactor/<фаза>`
+- [ ] Есть рабочий `.env` / доступ к MSSQL (для smoke вручную)
+- [ ] Зафиксирован эталонный прогон отчётов на своей книге (скрин или CSV в `data/reports/`, не в git)
+
+## Фаза 0: Подготовка тестов
+
+- [x] `pip install pytest` (`requirements-dev.txt`)
+- [x] Создана структура `tests/` по `testing_strategy.md`
+- [x] Добавлен `tests/fixtures/snapshot_minimal.json`
+- [x] Unit-тесты на funnel, compare, stats, periods — зелёные
+- [x] Cross-year тест помечен `xfail` (до фикса бага)
+
+**Критерий выхода:** `pytest` проходит; можно менять analyze с уверенностью.
+
+---
+
+## Фаза 1: ReadSnapshot.from_json + даты
+
+- [ ] Прочитан ADR-002, ADR-005 (если трогаете sync)
+- [ ] Добавлен `ReadSnapshot.from_json(path)`
+- [ ] `funnel_from_json` / `daily_matrix_from_json` используют snapshot
+- [ ] Исправлен cross-year в `from_stats_table` + тест снят с `xfail`
+- [ ] Ручной smoke: воронка и compare из JSON и MSSQL дают согласованный `chapter_order`
+
+**Критерий выхода:** один путь загрузки JSON; cross-year тест green.
+
+---
+
+## Фаза 2: SQL в mssql_repo
+
+- [ ] Прочитан ADR-003
+- [ ] Методы repo реализованы и покрыты (unit mock или интеграция)
+- [ ] `funnel.py`, `funnel_compare.py`, `delete_runs.py` без прямого SQL
+- [ ] `delete_runs.py --dry-run` на реальной БД — те же счётчики, что до переноса
+
+**Критерий выхода:** grep по `SELECT` в `analyze/` и `delete_runs.py` — пусто.
+
+---
+
+## Фаза 3: book_id в CLI
+
+- [ ] Прочитан ADR-001
+- [ ] `--book-id` везде; `--work-id` с предупреждением deprecation
+- [ ] README и glossary согласованы
+- [ ] Старые команды из README работают
+
+---
+
+## Фаза 4: cli_common / pyproject.toml
+
+- [ ] Прочитан ADR-008
+- [ ] `pip install -e .` работает без `sys.path` hack (хотя бы в новых скриптах)
+- [ ] Общие argparse-helpers для funnel-скриптов
+- [ ] `--help` всех entry points без ошибок
+
+---
+
+## Фаза 5: Дедуп analyze + cleanup
+
+- [ ] `chapter_filters`, `formatting`, `snapshot_loaders` выделены
+- [ ] `stats_test.py` переименован (ADR-006), импорты обновлены
+- [ ] Решение по stubs: report.py, sqlite, sales (удалить или оставить с пометкой)
+- [ ] `REPORTS_DIR` в settings
+- [ ] README «Структура» обновлена
+
+---
+
+## После каждого merge
+
+- [ ] `pytest`
+- [ ] Ручной smoke (минимум 2 пункта из known_issues §регрессионные сценарии)
+- [ ] `refactoring_plan.md` — отметить выполненные пункты (опционально)
+- [ ] Новые ADR в `decisions.md` при изменении контрактов
+
+## Откат
+
+- Каждая фаза — отдельный коммит или PR
+- При регрессии: revert коммита фазы, не «чинить на ходу» без теста
