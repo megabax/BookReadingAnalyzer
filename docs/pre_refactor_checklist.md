@@ -72,6 +72,16 @@
 
 ---
 
+## Фаза UI: Streamlit (подготовка)
+
+- [x] `requirements-ui.txt`, `streamlit_app.py`, `.streamlit/config.toml`
+- [x] `author_today/services/reports.py`
+- [x] `docs/ui_streamlit.md`, ADR-011, §18 в refactoring_plan
+- [ ] Этап A: воронка и compare в UI (после §2–§3)
+- [ ] Этап C: загрузка Selenium из UI
+
+---
+
 ## После каждого merge
 
 - [ ] `pytest`

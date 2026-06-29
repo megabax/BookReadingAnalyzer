@@ -260,23 +260,50 @@ README описывает `analyze/` как «сводки и reclan.csv», то
 
 ---
 
+## Средний приоритет (продолжение)
+
+### 18. Веб-интерфейс (Streamlit) 🚧 подготовлено
+
+**Статус:** каркас и документация готовы; рабочие экраны — после §2–§3.
+
+| Компонент | Путь | Статус |
+|-----------|------|--------|
+| Зависимости | `requirements-ui.txt` | ✅ |
+| Точка входа | `streamlit_app.py` | ✅ заглушка (tabs) |
+| Конфиг | `.streamlit/config.toml` | ✅ |
+| Сервисный слой | `author_today/services/reports.py` | ✅ |
+| Документация | `docs/ui_streamlit.md` | ✅ |
+| Отчёты в UI | воронка, compare, графики | ⏳ этап A |
+| Загрузка Selenium | фоновая задача | ⏳ этап C |
+
+**Правила:** UI → `services/` → `analyze/` / `storage/`; без `subprocess` на scripts; без SQL в `streamlit_app.py`.
+
+**Не делать:** Django, дублирование `scripts/report_*.py` в кнопках.
+
+Подробно: [`docs/ui_streamlit.md`](docs/ui_streamlit.md), ADR-011.
+
+---
+
 ## Рекомендуемый порядок работ
 
 ```mermaid
 flowchart TD
-    A["1. Тесты на funnel / stats"] --> B["2. ReadSnapshot.from_json + даты"]
+    A["1. Тесты ✅"] --> B["2. ReadSnapshot.from_json + даты"]
     B --> C["3. SQL в mssql_repo"]
-    C --> D["4. book_id в CLI"]
-    D --> E["5. cli_common / pyproject.toml"]
-    E --> F["6. Дедуп analyze + cleanup stubs"]
+    C --> D["4. book_id в CLI ✅"]
+    D --> E["5. cli_common / services"]
+    E --> F["6. Дедуп analyze"]
+    C --> G["7. Streamlit этап A: отчёты"]
+    F --> G
 ```
 
-1. **Тесты** — страховка перед изменением логики
+1. **Тесты** — ✅ сделано
 2. **Единый snapshot** — устраняет расхождения JSON vs MSSQL
-3. **SQL в storage** — проще сопровождать схему
-4. **Именование** — дёшево, сразу меньше путаницы
-5. **CLI** — когда отчётов станет больше
+3. **SQL в storage** — проще сопровождать схему; **блокирует полноценный UI**
+4. **Именование** — ✅ сделано (п. 1)
+5. **CLI / services** — `author_today/services/` начат под Streamlit
 6. **Заглушки и README** — по мере сил
+7. **Streamlit** — каркас ✅; отчёты в UI после п. 2–3 (см. §18)
 
 ---
 
@@ -299,4 +326,5 @@ flowchart TD
 | Storage | `author_today/storage/mssql_repo.py`, `persist.py`, `mssql/schema.sql` |
 | Scripts | `scripts/report_funnel.py`, `report_funnel_compare.py`, `delete_runs.py` |
 | Config | `config/settings.py`, `books.yaml` |
-| Tests | **нет** (задача на создание) |
+| UI | `streamlit_app.py`, `author_today/services/`, `docs/ui_streamlit.md` |
+| Tests | `tests/` (pytest) |

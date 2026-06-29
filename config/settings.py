@@ -33,6 +33,7 @@ DEFAULT_PERIOD_START = date(2025, 7, 1)
 DEFAULT_PERIOD_END = date(2025, 7, 31)
 DATA_DIR = ROOT_DIR / "data"
 RAW_DIR = DATA_DIR / "raw"
+REPORTS_DIR = DATA_DIR / "reports"
 DB_PATH = DATA_DIR / "db" / "reads.sqlite"
 
 
@@ -102,4 +103,5 @@ class Settings:
 
 def ensure_data_dirs() -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)

@@ -14,6 +14,7 @@ author_today/          # основной пакет
   storage/            # JSON, MS SQL (mssql_repo.py)
   analyze/            # сводки и reclan.csv
   pipeline/           # оркестратор sync_reads
+  services/           # слой для UI (reports.py)
   cli.py              # аргументы командной строки
 
 config/               # settings, books.yaml
@@ -21,7 +22,8 @@ scripts/              # fetch_reads.py, report.py
 data/raw/             # снимки JSON
 scripts/init_mssql.py # создание таблиц в MS SQL
 legacy/               # старые эксперименты
-selenium_stats.py     # точка входа (как раньше)
+selenium_stats.py     # точка входа CLI
+streamlit_app.py      # веб-интерфейс (Streamlit)
 ```
 
 ## Установка
@@ -95,6 +97,17 @@ python scripts/report_funnel.py --book-id 323389 --base-order 2 --start 2025-07-
 `--base-order N` — 100% считается от главы с `chapter_order=N` (порядок на сайте / в БД). Без флага — от первой главы воронки.
 
 Флаг `--csv` / `-o` сохраняет таблицу в CSV (разделитель `;`, UTF-8 с BOM для Excel). Без имени файла — `data/reports/funnel_<book_id>_<start>_<end>.csv`.
+
+## Веб-интерфейс (Streamlit)
+
+Каркас UI подготовлен; полные экраны отчётов — после рефакторинга SQL/snapshot (см. `refactoring_plan.md` §18).
+
+```bat
+pip install -r requirements.txt -r requirements-ui.txt
+streamlit run streamlit_app.py
+```
+
+Подробно: [`docs/ui_streamlit.md`](docs/ui_streamlit.md).
 
 ## Сравнение двух воронок (период A vs B)
 
