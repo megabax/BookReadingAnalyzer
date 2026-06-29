@@ -46,10 +46,10 @@
 
 ## Фаза 3: book_id в CLI
 
-- [ ] Прочитан ADR-001
-- [ ] `--book-id` везде; `--work-id` с предупреждением deprecation
-- [ ] README и glossary согласованы
-- [ ] Старые команды из README работают
+- [x] Прочитан ADR-001
+- [x] `--book-id` везде; `--work-id` с предупреждением deprecation
+- [x] README и glossary согласованы
+- [x] `AT_BOOK_ID` в `.env.example`, `books.yaml` → `book_id`
 
 ---
 
@@ -76,7 +76,7 @@
 
 - [ ] `pytest`
 - [ ] Ручной smoke (минимум 2 пункта из known_issues §регрессионные сценарии)
-- [ ] `refactoring_plan.md` — отметить выполненные пункты (опционально)
+- [x] `refactoring_plan.md` — отметить выполненные пункты (п. 1 ✅)
 - [ ] Новые ADR в `decisions.md` при изменении контрактов
 
 ## Откат

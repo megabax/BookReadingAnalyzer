@@ -25,7 +25,7 @@ from config.settings import Settings
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Воронка прочтений по порядку глав")
-    parser.add_argument("--book-id", type=int, help="ID книги (AT_WORK_ID)")
+    parser.add_argument("--book-id", type=int, help="ID книги (AT_BOOK_ID / AT_WORK_ID)")
     parser.add_argument("--start", type=str, help="Начало периода YYYY-MM-DD")
     parser.add_argument("--end", type=str, help="Конец периода YYYY-MM-DD")
     parser.add_argument("--json", type=Path, help="Взять данные из JSON (data/raw/...)")

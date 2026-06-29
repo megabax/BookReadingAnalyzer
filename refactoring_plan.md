@@ -9,20 +9,22 @@
 
 ## Высокий приоритет
 
-### 1. Единое имя: `book_id` vs `work_id`
+### 1. Единое имя: `book_id` vs `work_id` ✅ выполнено (2026-06)
+
+**Статус:** закрыто для Python/CLI/документации. Намеренно без изменений: колонка БД `fetch_runs.work_id`, параметр URL `workId`.
 
 Сейчас одно и то же понятие (author.today `workId`) называется по-разному:
 
 | Слой | Имя | Файлы |
 |------|-----|-------|
-| БД | `work_id` | `author_today/storage/mssql/schema.sql` |
-| Python / settings | `book_id` | `author_today/domain/models.py`, `config/settings.py` (`AT_WORK_ID` → `book_id`) |
-| CLI | смешанно | `--work-id` в `author_today/cli.py`, `scripts/delete_runs.py`; `--book-id` в `scripts/report_funnel.py`, `scripts/report_funnel_compare.py` |
-| URL | `work_id` | `author_today/fetch/stats_url.py` |
+| БД | `work_id` | `author_today/storage/mssql/schema.sql` — **оставлено** |
+| Python / settings | `book_id` | `domain/models.py`, `config/settings.py` (`AT_BOOK_ID` / `AT_WORK_ID` → `book_id`) |
+| CLI | `book_id` (+ alias) | `--book-id` везде; `--work-id` — устаревший alias с предупреждением |
+| URL сайта | `workId` | `author_today/fetch/stats_url.py` (`build_stats_url(book_id=...)`) |
 
-**Проблема:** приходится держать в голове соответствие `work_id` ↔ `book_id` ↔ `AT_WORK_ID`. README тоже смешивает термины.
+**Сделано:** `cli.py`, `delete_runs.py`, `stats_url.py`, `.env.example` (`AT_BOOK_ID`), `books.yaml`, README, glossary, data_contracts. См. ADR-001 в [`docs/decisions.md`](docs/decisions.md).
 
-**Рекомендация:** в Python и CLI везде `book_id`; в SQL колонку `work_id` можно оставить, маппинг только на границе репозитория. Старый флаг `--work-id` — алиас на переходный период.
+**Не в scope:** переименование колонки SQL (ADR-010).
 
 ---
 

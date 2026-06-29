@@ -21,7 +21,12 @@ def main() -> int:
         nargs="?",
         help="URL страницы; если не указан — используется URL по умолчанию из config",
     )
-    parser.add_argument("--work-id", type=int, help="ID книги на author.today")
+    parser.add_argument("--book-id", type=int, help="ID книги на author.today")
+    parser.add_argument(
+        "--work-id",
+        type=int,
+        help="(устар.) то же, что --book-id",
+    )
     parser.add_argument("--start", type=str, help="Начало периода YYYY-MM-DD")
     parser.add_argument("--end", type=str, help="Конец периода YYYY-MM-DD")
     parser.add_argument(
@@ -55,8 +60,14 @@ def main() -> int:
     save_mssql = not args.no_mssql
     save_raw = not args.no_raw
 
-    if args.work_id is not None:
-        settings.book_id = args.work_id
+    cli_book_id = args.book_id if args.book_id is not None else args.work_id
+    if args.work_id is not None and args.book_id is None:
+        print(
+            "Предупреждение: --work-id устарел, используйте --book-id",
+            file=sys.stderr,
+        )
+    if cli_book_id is not None:
+        settings.book_id = cli_book_id
     if args.wait_login is not None:
         settings.wait_login_seconds = args.wait_login
     if args.timeout is not None:

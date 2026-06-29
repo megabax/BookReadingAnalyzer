@@ -38,14 +38,14 @@ pip install -r requirements-dev.txt
 ## Запуск
 
 ```bat
-REM По умолчанию — июль 2025, work_id 323389 (см. config/settings.py)
+REM По умолчанию — июль 2025, book_id 323389 (см. config/settings.py)
 python selenium_stats.py --wait-login 60
 
 REM По URL
 python selenium_stats.py "https://author.today/report/work/stats?..."
 
-REM По периоду (URL соберётся из AT_WORK_ID)
-python selenium_stats.py --start 2025-07-01 --end 2025-07-31 --wait-login 60 -o reads.csv
+REM По периоду (URL соберётся из AT_BOOK_ID или AT_WORK_ID)
+python selenium_stats.py --book-id 323389 --start 2025-07-01 --end 2025-07-31 --wait-login 60 -o reads.csv
 
 REM То же через scripts
 python scripts/fetch_reads.py --start 2025-07-01 --end 2025-07-31 --wait-login 60
@@ -77,8 +77,8 @@ python selenium_stats.py
 Удалить ошибочно загруженные дубли из БД:
 
 ```bat
-python scripts/delete_runs.py --work-id 323389 --fetched-from 2026-06-02T09:00:00 --fetched-to 2026-06-02T10:00:00 --dry-run
-python scripts/delete_runs.py --work-id 323389 --fetched-from 2026-06-02T09:00:00 --fetched-to 2026-06-02T10:00:00 --yes
+python scripts/delete_runs.py --book-id 323389 --fetched-from 2026-06-02T09:00:00 --fetched-to 2026-06-02T10:00:00 --dry-run
+python scripts/delete_runs.py --book-id 323389 --fetched-from 2026-06-02T09:00:00 --fetched-to 2026-06-02T10:00:00 --yes
 ```
 
 ## Воронка по главам

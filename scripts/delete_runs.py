@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Удаление загрузок из MS SQL по work_id и диапазону fetched_at."""
+"""Удаление загрузок из MS SQL по book_id и диапазону fetched_at."""
 
 from __future__ import annotations
 
@@ -27,11 +27,30 @@ def _parse_fetched_at(raw_value: str) -> datetime:
         ) from exc
 
 
+def _resolve_book_id(args: argparse.Namespace) -> int:
+    if args.book_id is not None and args.work_id is not None and args.book_id != args.work_id:
+        raise SystemExit("Ошибка: --book-id и --work-id задают разные значения")
+    book_id = args.book_id if args.book_id is not None else args.work_id
+    if book_id is None:
+        raise SystemExit("Ошибка: укажите --book-id")
+    if args.work_id is not None and args.book_id is None:
+        print(
+            "Предупреждение: --work-id устарел, используйте --book-id",
+            file=sys.stderr,
+        )
+    return book_id
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Удалить записи из chapter_reads и fetch_runs по work_id и диапазону fetched_at."
+        description="Удалить записи из chapter_reads и fetch_runs по book_id и диапазону fetched_at."
     )
-    parser.add_argument("--work-id", type=int, required=True, help="work_id книги")
+    parser.add_argument("--book-id", type=int, help="ID книги на author.today")
+    parser.add_argument(
+        "--work-id",
+        type=int,
+        help="(устар.) то же, что --book-id",
+    )
     parser.add_argument(
         "--fetched-from",
         type=str,
@@ -55,6 +74,7 @@ def main() -> int:
         help="Не спрашивать подтверждение",
     )
     args = parser.parse_args()
+    book_id = _resolve_book_id(args)
 
     settings = Settings.from_env()
     if not settings.has_mssql():
@@ -73,7 +93,7 @@ def main() -> int:
         return 1
 
     where = "fr.work_id = ? AND fr.fetched_at >= ? AND fr.fetched_at <= ?"
-    params = [args.work_id, fetched_from, fetched_to]
+    params = [book_id, fetched_from, fetched_to]
     runs_sql = f"SELECT COUNT(*) FROM dbo.fetch_runs fr WHERE {where}"
     run_ids_sql = f"SELECT fr.id FROM dbo.fetch_runs fr WHERE {where} ORDER BY fr.id"
     reads_sql = (
@@ -98,7 +118,7 @@ def main() -> int:
         reads_count = int(cursor.fetchone()[0])
 
         print(
-            f"Фильтр: work_id={args.work_id}, "
+            f"Фильтр: book_id={book_id}, "
             f"fetched_at от {args.fetched_from} до {args.fetched_to}"
         )
         if run_ids:
@@ -134,4 +154,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

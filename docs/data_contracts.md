@@ -84,8 +84,8 @@ PK: `(run_id, read_date, chapter_name)`.
 
 | Флаг | Отчёты | Описание |
 |------|--------|----------|
-| `--book-id` | funnel, compare | ID книги (default: `AT_WORK_ID`) |
-| `--work-id` | cli, delete_runs | То же (устаревающее имя) |
+| `--book-id` | cli, funnel, compare, delete_runs | ID книги (default: `AT_BOOK_ID` / `AT_WORK_ID`) |
+| `--work-id` | cli, delete_runs | Устаревший alias для `--book-id` |
 | `--start`, `--end` | funnel | Период |
 | `--start-a`, `--end-a`, `--start-b`, `--end-b` | compare | Два периода |
 | `--base-order` | funnel, compare | `chapter_order` базы для 100% |
@@ -113,5 +113,5 @@ PK: `(run_id, read_date, chapter_name)`.
 
 См. `.env.example`. Критичные для рефакторинга:
 
-- `AT_WORK_ID` → `book_id`
+- `AT_BOOK_ID` → `book_id` (предпочтительно); `AT_WORK_ID` — устаревший alias
 - `MSSQL_*` — подключение к БД

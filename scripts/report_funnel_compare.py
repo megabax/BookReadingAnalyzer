@@ -26,7 +26,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Сравнение воронок: дневные %% от базовой главы, μ, σ, p-value"
     )
-    parser.add_argument("--book-id", type=int, help="ID книги (AT_WORK_ID)")
+    parser.add_argument("--book-id", type=int, help="ID книги (AT_BOOK_ID / AT_WORK_ID)")
     parser.add_argument("--start-a", type=str, required=True, help="Период A: начало YYYY-MM-DD")
     parser.add_argument("--end-a", type=str, required=True, help="Период A: конец YYYY-MM-DD")
     parser.add_argument("--start-b", type=str, required=True, help="Период B: начало YYYY-MM-DD")

@@ -62,8 +62,9 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         load_dotenv()
+        book_id_raw = os.getenv("AT_BOOK_ID") or os.getenv("AT_WORK_ID") or "323389"
         return cls(
-            book_id=int(os.getenv("AT_WORK_ID", "323389")),
+            book_id=int(book_id_raw),
             value_type=os.getenv("AT_VALUE_TYPE", "hit"),
             chrome_user_data_dir=os.getenv("CHROME_USER_DATA_DIR") or None,
             headless=os.getenv("AT_HEADLESS", "").lower() in ("1", "true", "yes"),

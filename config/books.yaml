@@ -1,4 +1,4 @@
-# Книги для синхронизации (work_id с author.today)
+# Книги для синхронизации (book_id с author.today, в URL — workId)
 books:
-  - work_id: 323389
+  - book_id: 323389
     title: "Пример книги"

@@ -46,7 +46,7 @@ def test_report_funnel_compare_help():
 def test_delete_runs_help():
     result = _run_script("scripts/delete_runs.py", "--help")
     assert result.returncode == 0
-    assert "--fetched-from" in result.stdout
+    assert "--book-id" in result.stdout
 
 
 def test_report_funnel_json_fixture(minimal_snapshot_path: Path):

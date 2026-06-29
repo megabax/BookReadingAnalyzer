@@ -7,7 +7,7 @@ STATS_BASE = "https://author.today/report/work/stats"
 
 
 def build_stats_url(
-    work_id: int,
+    book_id: int,
     period_start: date,
     period_end: date,
     value_type: str = "hit",
@@ -18,7 +18,7 @@ def build_stats_url(
     params = {
         "startDate": start_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
         "endDate": end_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-        "workId": work_id,
+        "workId": book_id,
         "valueType": value_type,
     }
     return f"{STATS_BASE}?{urlencode(params)}"

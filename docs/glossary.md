@@ -9,7 +9,8 @@
 | **workId** | URL author.today, API сайта | ID произведения на сайте |
 | **book_id** | Python (`ReadSnapshot`, `Settings`, отчёты) | То же, что workId; предпочтительное имя в коде |
 | **work_id** | MS SQL (`fetch_runs.work_id`, `books.id`) | То же значение; имя колонки в БД |
-| **AT_WORK_ID** | `.env` | Переменная окружения → `Settings.book_id` |
+| **AT_BOOK_ID** | `.env` | Переменная окружения → `Settings.book_id` (предпочтительно) |
+| **AT_WORK_ID** | `.env` | Устаревший alias для `AT_BOOK_ID` |
 
 **Правило после рефакторинга:** в Python и CLI — только `book_id`; `work_id` — только на границе SQL-репозитория.
 
