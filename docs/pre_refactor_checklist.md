@@ -35,9 +35,9 @@
 
 ## Фаза 2: SQL в mssql_repo
 
-- [ ] Прочитан ADR-003
-- [ ] Методы repo реализованы и покрыты (unit mock или интеграция)
-- [ ] `funnel.py`, `funnel_compare.py`, `delete_runs.py` без прямого SQL
+- [x] Прочитан ADR-003
+- [x] Методы repo реализованы и покрыты (unit mock)
+- [x] `funnel.py`, `funnel_compare.py`, `delete_runs.py` без прямого SQL
 - [ ] `delete_runs.py --dry-run` на реальной БД — те же счётчики, что до переноса
 
 **Критерий выхода:** grep по `SELECT` в `analyze/` и `delete_runs.py` — пусто.

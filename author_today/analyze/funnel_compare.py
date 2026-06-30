@@ -9,7 +9,7 @@ from datetime import date
 from pathlib import Path
 
 from author_today.analyze.stats_test import mean_and_sigma, welch_ttest_pvalue
-from author_today.storage.mssql.connection import connect
+from author_today.storage.mssql_repo import create_mssql_repository
 from config.settings import Settings
 
 # read_date -> site_chapter_order -> (name, views)
@@ -197,29 +197,8 @@ def daily_matrix_from_mssql(
     period_start: date,
     period_end: date,
 ) -> DailyMatrix:
-    sql = """
-        SELECT
-            cr.read_date,
-            cr.chapter_order,
-            cr.chapter_name,
-            SUM(COALESCE(cr.views, 0)) AS views
-        FROM dbo.chapter_reads cr
-        INNER JOIN dbo.fetch_runs fr ON fr.id = cr.run_id
-        WHERE fr.work_id = ?
-          AND cr.read_date >= ?
-          AND cr.read_date <= ?
-        GROUP BY cr.read_date, cr.chapter_order, cr.chapter_name
-        ORDER BY cr.read_date, cr.chapter_order
-    """
-    matrix: DailyMatrix = {}
-    with connect(settings) as conn:
-        cursor = conn.cursor()
-        cursor.execute(sql, book_id, period_start, period_end)
-        for read_date, chapter_order, chapter_name, views in cursor.fetchall():
-            d = read_date if isinstance(read_date, date) else date.fromisoformat(str(read_date)[:10])
-            order = int(chapter_order)
-            matrix.setdefault(d, {})[order] = (str(chapter_name), int(views))
-    return matrix
+    repo = create_mssql_repository(settings)
+    return repo.daily_chapter_matrix(book_id, period_start, period_end)
 
 
 def _fmt_decimal(value: float, places: int = 2) -> str:

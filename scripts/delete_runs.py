@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from author_today.storage.mssql.connection import connect
+from author_today.storage.mssql_repo import create_mssql_repository
 from config.settings import Settings
 
 
@@ -92,63 +92,34 @@ def main() -> int:
         print("Ошибка: --fetched-from должен быть меньше или равен --fetched-to", file=sys.stderr)
         return 1
 
-    where = "fr.work_id = ? AND fr.fetched_at >= ? AND fr.fetched_at <= ?"
-    params = [book_id, fetched_from, fetched_to]
-    runs_sql = f"SELECT COUNT(*) FROM dbo.fetch_runs fr WHERE {where}"
-    run_ids_sql = f"SELECT fr.id FROM dbo.fetch_runs fr WHERE {where} ORDER BY fr.id"
-    reads_sql = (
-        "SELECT COUNT(*) "
-        "FROM dbo.chapter_reads cr "
-        f"WHERE cr.run_id IN (SELECT fr.id FROM dbo.fetch_runs fr WHERE {where})"
-    )
-    delete_reads_sql = (
-        "DELETE cr "
-        "FROM dbo.chapter_reads cr "
-        f"WHERE cr.run_id IN (SELECT fr.id FROM dbo.fetch_runs fr WHERE {where})"
-    )
-    delete_runs_sql = f"DELETE fr FROM dbo.fetch_runs fr WHERE {where}"
+    repo = create_mssql_repository(settings)
+    preview = repo.preview_delete_runs_by_fetched_at(book_id, fetched_from, fetched_to)
 
-    with connect(settings) as conn:
-        cursor = conn.cursor()
-        cursor.execute(runs_sql, params)
-        runs_count = int(cursor.fetchone()[0])
-        cursor.execute(run_ids_sql, params)
-        run_ids = [int(row[0]) for row in cursor.fetchall()]
-        cursor.execute(reads_sql, params)
-        reads_count = int(cursor.fetchone()[0])
+    print(
+        f"Фильтр: book_id={book_id}, "
+        f"fetched_at от {args.fetched_from} до {args.fetched_to}"
+    )
+    if preview.run_ids:
+        print("Найденные run_id: " + ", ".join(str(v) for v in preview.run_ids))
+    print(f"Найдено fetch_runs: {preview.runs_count}")
+    print(f"Найдено chapter_reads: {preview.reads_count}")
 
-        print(
-            f"Фильтр: book_id={book_id}, "
-            f"fetched_at от {args.fetched_from} до {args.fetched_to}"
-        )
-        if run_ids:
-            print("Найденные run_id: " + ", ".join(str(v) for v in run_ids))
-        print(f"Найдено fetch_runs: {runs_count}")
-        print(f"Найдено chapter_reads: {reads_count}")
-        if args.dry_run:
-            conn.rollback()
+    if args.dry_run:
+        return 0
+
+    if preview.runs_count == 0:
+        print("Нечего удалять.")
+        return 0
+
+    if not args.yes:
+        answer = input("Удалить найденные записи? [y/N]: ").strip().lower()
+        if answer not in ("y", "yes", "д", "да"):
+            print("Отменено.")
             return 0
 
-        if runs_count == 0:
-            conn.rollback()
-            print("Нечего удалять.")
-            return 0
-
-        if not args.yes:
-            answer = input("Удалить найденные записи? [y/N]: ").strip().lower()
-            if answer not in ("y", "yes", "д", "да"):
-                conn.rollback()
-                print("Отменено.")
-                return 0
-
-        cursor.execute(delete_reads_sql, params)
-        deleted_reads = cursor.rowcount if cursor.rowcount >= 0 else reads_count
-        cursor.execute(delete_runs_sql, params)
-        deleted_runs = cursor.rowcount if cursor.rowcount >= 0 else runs_count
-        conn.commit()
-
-    print(f"Удалено chapter_reads: {deleted_reads}")
-    print(f"Удалено fetch_runs: {deleted_runs}")
+    result = repo.delete_runs_by_fetched_at(book_id, fetched_from, fetched_to)
+    print(f"Удалено chapter_reads: {result.deleted_reads}")
+    print(f"Удалено fetch_runs: {result.deleted_runs}")
     return 0
 
 

@@ -46,13 +46,15 @@ selenium_stats.py / scripts/*
 ### Воронка (`report_funnel.py`)
 
 ```
-MS SQL ─────► funnel_from_mssql() ──► build_funnel() ──► print / CSV
+MS SQL ─────► mssql_repo.aggregate_chapter_views() ──► build_funnel() ──► print / CSV
+         └──► funnel_from_mssql() — тонкая обёртка над repo
 ```
 
 ### Сравнение (`report_funnel_compare.py`)
 
 ```
-MS SQL A/B ► daily_matrix_from_mssql() ──► compare_funnel_periods() ──► print / CSV
+MS SQL A/B ► mssql_repo.daily_chapter_matrix() ──► compare_funnel_periods() ──► print / CSV
+         └──► daily_matrix_from_mssql() — тонкая обёртка над repo
          └──► stats_test.welch_ttest_pvalue() по каждой главе
 ```
 
@@ -64,7 +66,7 @@ MS SQL A/B ► daily_matrix_from_mssql() ──► compare_funnel_periods() ─�
 |-----------|------|
 | `export.py` | CSV/JSON таблицы с сайта, печать |
 | `persist.py` | Снимок → raw JSON + опционально MSSQL |
-| `mssql_repo.py` | `ensure_schema`, `save_snapshot`, `list_runs` |
+| `mssql_repo.py` | `ensure_schema`, `save_snapshot`, `list_runs`, `aggregate_chapter_views`, `daily_chapter_matrix`, `delete_runs_by_fetched_at` |
 | `mssql/connection.py` | pyodbc, connection string из `Settings` |
 | `base.py` | Protocol `ReadRepository` (используется частично) |
 | `sqlite_repo.py` | Заглушка |

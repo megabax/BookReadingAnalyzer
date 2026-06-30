@@ -9,7 +9,7 @@ from datetime import date
 from pathlib import Path
 
 from author_today.domain.models import ReadSnapshot
-from author_today.storage.mssql.connection import connect
+from author_today.storage.mssql_repo import create_mssql_repository
 from config.settings import Settings
 
 
@@ -158,23 +158,8 @@ def funnel_from_mssql(
     skip_book_page: bool = False,
     baseline_chapter_order: int | None = None,
 ) -> list[FunnelStep]:
-    sql = """
-        SELECT
-            cr.chapter_order,
-            cr.chapter_name,
-            SUM(COALESCE(cr.views, 0)) AS total_views
-        FROM dbo.chapter_reads cr
-        INNER JOIN dbo.fetch_runs fr ON fr.id = cr.run_id
-        WHERE fr.work_id = ?
-          AND cr.read_date >= ?
-          AND cr.read_date <= ?
-        GROUP BY cr.chapter_order, cr.chapter_name
-        ORDER BY cr.chapter_order
-    """
-    with connect(settings) as conn:
-        cursor = conn.cursor()
-        cursor.execute(sql, book_id, period_start, period_end)
-        rows = [(int(r[0]), str(r[1]), int(r[2])) for r in cursor.fetchall()]
+    repo = create_mssql_repository(settings)
+    rows = repo.aggregate_chapter_views(book_id, period_start, period_end)
     return build_funnel(
         rows,
         skip_book_page=skip_book_page,

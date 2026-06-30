@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
 
 from author_today.domain.models import ReadSnapshot
@@ -7,6 +9,26 @@ from author_today.storage.mssql.connection import connect
 from config.settings import Settings
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "mssql" / "schema.sql"
+
+# chapter_order, chapter_name, total_views
+ChapterViewsRow = tuple[int, str, int]
+# read_date -> chapter_order -> (chapter_name, views)
+DailyChapterMatrix = dict[date, dict[int, tuple[str, int]]]
+
+_RUNS_FETCHED_AT_FILTER = "fr.work_id = ? AND fr.fetched_at >= ? AND fr.fetched_at <= ?"
+
+
+@dataclass(frozen=True)
+class DeleteRunsPreview:
+    run_ids: tuple[int, ...]
+    runs_count: int
+    reads_count: int
+
+
+@dataclass(frozen=True)
+class DeleteRunsResult(DeleteRunsPreview):
+    deleted_reads: int
+    deleted_runs: int
 
 
 class MssqlReadRepository:
@@ -82,6 +104,129 @@ class MssqlReadRepository:
             )
             columns = [col[0] for col in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def aggregate_chapter_views(
+        self,
+        book_id: int,
+        period_start: date,
+        period_end: date,
+    ) -> list[ChapterViewsRow]:
+        """Сумма просмотров по главам за период (все run'ы книги)."""
+        sql = """
+            SELECT
+                cr.chapter_order,
+                cr.chapter_name,
+                SUM(COALESCE(cr.views, 0)) AS total_views
+            FROM dbo.chapter_reads cr
+            INNER JOIN dbo.fetch_runs fr ON fr.id = cr.run_id
+            WHERE fr.work_id = ?
+              AND cr.read_date >= ?
+              AND cr.read_date <= ?
+            GROUP BY cr.chapter_order, cr.chapter_name
+            ORDER BY cr.chapter_order
+        """
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, book_id, period_start, period_end)
+            return [(int(r[0]), str(r[1]), int(r[2])) for r in cursor.fetchall()]
+
+    def daily_chapter_matrix(
+        self,
+        book_id: int,
+        period_start: date,
+        period_end: date,
+    ) -> DailyChapterMatrix:
+        """Дневная матрица просмотров: дата → chapter_order → (имя, views)."""
+        sql = """
+            SELECT
+                cr.read_date,
+                cr.chapter_order,
+                cr.chapter_name,
+                SUM(COALESCE(cr.views, 0)) AS views
+            FROM dbo.chapter_reads cr
+            INNER JOIN dbo.fetch_runs fr ON fr.id = cr.run_id
+            WHERE fr.work_id = ?
+              AND cr.read_date >= ?
+              AND cr.read_date <= ?
+            GROUP BY cr.read_date, cr.chapter_order, cr.chapter_name
+            ORDER BY cr.read_date, cr.chapter_order
+        """
+        matrix: DailyChapterMatrix = {}
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, book_id, period_start, period_end)
+            for read_date, chapter_order, chapter_name, views in cursor.fetchall():
+                d = read_date if isinstance(read_date, date) else date.fromisoformat(str(read_date)[:10])
+                order = int(chapter_order)
+                matrix.setdefault(d, {})[order] = (str(chapter_name), int(views))
+        return matrix
+
+    def preview_delete_runs_by_fetched_at(
+        self,
+        book_id: int,
+        fetched_from: datetime,
+        fetched_to: datetime,
+    ) -> DeleteRunsPreview:
+        """Сколько run'ов и строк chapter_reads попадут под фильтр fetched_at."""
+        params = (book_id, fetched_from, fetched_to)
+        runs_sql = f"SELECT fr.id FROM dbo.fetch_runs fr WHERE {_RUNS_FETCHED_AT_FILTER} ORDER BY fr.id"
+        reads_sql = (
+            "SELECT COUNT(*) "
+            "FROM dbo.chapter_reads cr "
+            f"WHERE cr.run_id IN (SELECT fr.id FROM dbo.fetch_runs fr WHERE {_RUNS_FETCHED_AT_FILTER})"
+        )
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(runs_sql, params)
+            run_ids = tuple(int(row[0]) for row in cursor.fetchall())
+            cursor.execute(reads_sql, params)
+            reads_count = int(cursor.fetchone()[0])
+        return DeleteRunsPreview(
+            run_ids=run_ids,
+            runs_count=len(run_ids),
+            reads_count=reads_count,
+        )
+
+    def delete_runs_by_fetched_at(
+        self,
+        book_id: int,
+        fetched_from: datetime,
+        fetched_to: datetime,
+    ) -> DeleteRunsResult:
+        """Удалить chapter_reads и fetch_runs по book_id и диапазону fetched_at."""
+        preview = self.preview_delete_runs_by_fetched_at(book_id, fetched_from, fetched_to)
+        if preview.runs_count == 0:
+            return DeleteRunsResult(
+                run_ids=preview.run_ids,
+                runs_count=0,
+                reads_count=0,
+                deleted_reads=0,
+                deleted_runs=0,
+            )
+
+        params = (book_id, fetched_from, fetched_to)
+        delete_reads_sql = (
+            "DELETE cr "
+            "FROM dbo.chapter_reads cr "
+            f"WHERE cr.run_id IN (SELECT fr.id FROM dbo.fetch_runs fr WHERE {_RUNS_FETCHED_AT_FILTER})"
+        )
+        delete_runs_sql = f"DELETE fr FROM dbo.fetch_runs fr WHERE {_RUNS_FETCHED_AT_FILTER}"
+
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(delete_reads_sql, params)
+            deleted_reads = cursor.rowcount if cursor.rowcount >= 0 else preview.reads_count
+            cursor.execute(delete_runs_sql, params)
+            deleted_runs = cursor.rowcount if cursor.rowcount >= 0 else preview.runs_count
+            conn.commit()
+
+        return DeleteRunsResult(
+            run_ids=preview.run_ids,
+            runs_count=preview.runs_count,
+            reads_count=preview.reads_count,
+            deleted_reads=deleted_reads,
+            deleted_runs=deleted_runs,
+        )
 
     @staticmethod
     def _chapter_rows(snapshot: ReadSnapshot) -> list[tuple]:
