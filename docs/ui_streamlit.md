@@ -77,9 +77,8 @@ author_today/domain/      ← ReadSnapshot (после §3)
 |-------|---------|
 | **Воронка** | book_id, период, base-order, skip-book-page; таблица + line/bar chart по % от базы |
 | **Сравнение** | период A / B, base-order; таблица μ, σ, p-value; подсветка p &lt; 0,05 |
-| **Снимки** | список `data/raw/reads_*.json`, выбор файла как источника |
 
-Источник: MS SQL (если `.env` настроен) или выбранный JSON.
+Источник: **только MS SQL** (ADR-012). JSON в `data/raw/` не показываем в UI.
 
 ### Этап B — удобство
 
@@ -91,7 +90,7 @@ author_today/domain/      ← ReadSnapshot (после §3)
 
 - Кнопка «Загрузить период» → фоновый процесс / отдельное окно терминала
 - Поле кода нового устройства (как в CLI)
-- Статус: running / done / error, ссылка на новый JSON в raw
+- Статус: running / done / error; данные в MS SQL
 
 ### Не в MVP
 
@@ -118,7 +117,6 @@ author_today/domain/      ← ReadSnapshot (после §3)
 ### Sidebar (общий)
 
 - `book_id`
-- Источник: radio «MS SQL» / «JSON файл»
 - Период(ы): `st.date_input`
 - Чекбоксы: skip book page, base-order
 

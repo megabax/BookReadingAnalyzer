@@ -42,8 +42,16 @@ def main() -> int:
         action="store_true",
         help="Не включать «Страница книги»",
     )
-    parser.add_argument("--json-a", type=Path, help="Период A из JSON")
-    parser.add_argument("--json-b", type=Path, help="Период B из JSON")
+    parser.add_argument(
+        "--json-a",
+        type=Path,
+        help="(устарело) период A из JSON; только с AT_ENABLE_LEGACY_JSON=yes",
+    )
+    parser.add_argument(
+        "--json-b",
+        type=Path,
+        help="(устарело) период B из JSON; только с AT_ENABLE_LEGACY_JSON=yes",
+    )
     parser.add_argument(
         "--csv",
         nargs="?",
@@ -64,6 +72,13 @@ def main() -> int:
 
     try:
         if args.json_a and args.json_b:
+            if not settings.enable_legacy_json:
+                print(
+                    "Ошибка: --json-a/--json-b отключены (источник правды — MS SQL). "
+                    "Для отладки: AT_ENABLE_LEGACY_JSON=yes",
+                    file=sys.stderr,
+                )
+                return 1
             matrix_a = daily_matrix_from_json(args.json_a)
             matrix_b = daily_matrix_from_json(args.json_b)
         elif args.json_a or args.json_b:
@@ -78,7 +93,7 @@ def main() -> int:
             )
         else:
             print(
-                "Ошибка: укажите --json-a/--json-b или настройте MS SQL в .env",
+                "Ошибка: настройте MS SQL в .env (источник данных для отчётов)",
                 file=sys.stderr,
             )
             return 1

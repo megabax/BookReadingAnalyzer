@@ -61,6 +61,8 @@ python scripts/fetch_reads.py --start 2025-07-01 --end 2025-07-31 --wait-login 6
 
 ## MS SQL Server
 
+**Источник правды для отчётов** — MS SQL. Файлы `data/raw/reads_*.json` — устаревший артефакт (см. ADR-012 в `docs/decisions.md`).
+
 Таблицы:
 
 | Таблица | Назначение |
@@ -89,10 +91,11 @@ python scripts/delete_runs.py --book-id 323389 --fetched-from 2026-06-02T09:00:0
 
 ```bat
 python scripts/report_funnel.py --book-id 323389 --start 2025-07-01 --end 2025-07-31
-python scripts/report_funnel.py --json data/raw/reads_323389_....json --csv
 python scripts/report_funnel.py --skip-book-page --base-order 2 --csv
 python scripts/report_funnel.py --book-id 323389 --base-order 2 --start 2025-07-01 --end 2025-07-31
 ```
+
+Для отладки по JSON (legacy): `AT_ENABLE_LEGACY_JSON=yes` и `--json data/raw/reads_....json`.
 
 `--base-order N` — 100% считается от главы с `chapter_order=N` (порядок на сайте / в БД). Без флага — от первой главы воронки.
 
@@ -117,11 +120,9 @@ streamlit run streamlit_app.py
 python scripts/report_funnel_compare.py --book-id 323389 --base-order 2 ^
   --start-a 2025-07-01 --end-a 2025-07-31 ^
   --start-b 2025-08-01 --end-b 2025-08-31 --skip-book-page --csv
-
-python scripts/report_funnel_compare.py --base-order 2 ^
-  --start-a 2025-07-01 --end-a 2025-07-31 --start-b 2025-08-01 --end-b 2025-08-31 ^
-  --json-a data/raw/reads_a.json --json-b data/raw/reads_b.json
 ```
+
+Для отладки по JSON (legacy): `AT_ENABLE_LEGACY_JSON=yes` и `--json-a` / `--json-b`.
 
 `*` в консоли — p < 0,05 (различие средних дневных % значимо).
 

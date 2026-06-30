@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import streamlit as st
 
-from author_today.services.reports import list_raw_snapshots
 from config.settings import Settings
 
 st.set_page_config(
@@ -42,11 +41,9 @@ with st.sidebar:
     st.divider()
     st.subheader("Источник данных")
     if settings.has_mssql():
-        st.success("MS SQL: подключение настроено")
+        st.success("MS SQL — актуальные данные")
     else:
-        st.warning("MS SQL не настроен — отчёты из JSON в data/raw")
-    snapshots = list_raw_snapshots(book_id=int(book_id))
-    st.caption(f"JSON-снимков в data/raw: {len(snapshots)}")
+        st.error("MS SQL не настроен. Задайте MSSQL_* в .env")
 
 tab_funnel, tab_compare, tab_fetch = st.tabs(["Воронка", "Сравнение периодов", "Загрузка"])
 

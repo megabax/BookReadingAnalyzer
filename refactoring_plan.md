@@ -48,22 +48,23 @@
 
 ---
 
-### 3. Единый путь загрузки JSON через `ReadSnapshot`
+### 3. Единая доменная модель: MS SQL → `ReadSnapshot`
 
-Два парсера читают один формат JSON по-разному:
+**Источник правды — MS SQL** (ADR-012). JSON в `data/raw/` — legacy, скрыт из UI/CLI; удаление кода — позже.
 
-- `funnel_from_json()` в `funnel.py` — агрегация по **имени** главы, `chapter_order` = порядок первого появления
-- `daily_matrix_from_json()` в `funnel_compare.py` — матрица по дням, `order = idx + 1` внутри дня
+Целевой поток отчётов:
 
-Из MSSQL берётся настоящий `chapter_order` (как на сайте, через `mssql_repo._chapter_rows`).
+```
+mssql_repo.load_snapshot(...) ──► ReadSnapshot ──► funnel / compare
+```
 
-**Проблема:** воронка из JSON и из БД может расходиться. Нет общего `ReadSnapshot.from_json_file()`.
+**Проблема сейчас:** SQL и сборка снимка размазаны по `funnel.py`, `funnel_compare.py`, `delete_runs.py`; два устаревших JSON-парсера (`funnel_from_json`, `daily_matrix_from_json`) расходятся между собой.
 
 **Рекомендация:**
 
-- `ReadSnapshot.from_json(path)` в `author_today/domain/models.py`
-- воронка и сравнение периодов строятся от одной модели
-- использовать уже существующий `funnel_from_snapshot()` как канонический путь для JSON
+- загрузка снимка из БД в `mssql_repo` → `ReadSnapshot`
+- отчёты только через `funnel_from_snapshot()` / матрицу из snapshot
+- `ReadSnapshot.from_json(path)` — **для тестов и фикстур**, не продакшен-путь
 
 ---
 
@@ -122,7 +123,7 @@ if str(ROOT) not in sys.path:
 Дублируются аргументы между `report_funnel.py` и `report_funnel_compare.py`:
 
 - `--book-id`, `--start` / `--end`, `--skip-book-page`, `--base-order`, `--csv`
-- `Settings.from_env()` + выбор JSON vs MSSQL
+- `Settings.from_env()` + MS SQL (JSON legacy за `AT_ENABLE_LEGACY_JSON`)
 - `except ValueError` → stderr → exit 1
 
 **Рекомендация:**
@@ -148,7 +149,7 @@ if str(ROOT) not in sys.path:
 | Расчёт % | `_pct()` | inline |
 | CSV decimal | `_fmt_decimal(places=1)` | `_fmt_decimal(places=2)` |
 | MSSQL | `funnel_from_mssql` | `daily_matrix_from_mssql` |
-| JSON | `funnel_from_json` | `daily_matrix_from_json` |
+| JSON (legacy) | `funnel_from_json` | `daily_matrix_from_json` |
 
 **Рекомендация:** выделить:
 
@@ -288,7 +289,7 @@ README описывает `analyze/` как «сводки и reclan.csv», то
 
 ```mermaid
 flowchart TD
-    A["1. Тесты ✅"] --> B["2. ReadSnapshot.from_json + даты"]
+    A["1. Тесты ✅"] --> B["2. MSSQL → ReadSnapshot + даты"]
     B --> C["3. SQL в mssql_repo"]
     C --> D["4. book_id в CLI ✅"]
     D --> E["5. cli_common / services"]
@@ -298,7 +299,7 @@ flowchart TD
 ```
 
 1. **Тесты** — ✅ сделано
-2. **Единый snapshot** — устраняет расхождения JSON vs MSSQL
+2. **MSSQL → ReadSnapshot** — единый путь отчётов; JSON только в тестах
 3. **SQL в storage** — проще сопровождать схему; **блокирует полноценный UI**
 4. **Именование** — ✅ сделано (п. 1)
 5. **CLI / services** — `author_today/services/` начат под Streamlit

@@ -27,9 +27,9 @@
 - [ ] Добавлен `ReadSnapshot.from_json(path)`
 - [ ] `funnel_from_json` / `daily_matrix_from_json` используют snapshot
 - [ ] Исправлен cross-year в `from_stats_table` + тест снят с `xfail`
-- [ ] Ручной smoke: воронка и compare из JSON и MSSQL дают согласованный `chapter_order`
+- [ ] Ручной smoke: воронка и compare из MSSQL согласованы с доменной моделью
 
-**Критерий выхода:** один путь загрузки JSON; cross-year тест green.
+**Критерий выхода:** загрузка снимка из MSSQL в `ReadSnapshot`; cross-year тест green.
 
 ---
 

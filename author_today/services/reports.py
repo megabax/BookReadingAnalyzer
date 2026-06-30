@@ -1,4 +1,7 @@
-"""Отчёты для Streamlit UI — вызовы analyze без subprocess и без SQL в UI."""
+"""Отчёты для Streamlit UI — вызовы analyze без subprocess и без SQL в UI.
+
+Источник данных для отчётов — MS SQL. JSON в data/raw — устаревший промежуточный формат.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +19,7 @@ from config.settings import RAW_DIR, Settings
 
 
 def list_raw_snapshots(*, book_id: int | None = None) -> list[Path]:
-    """JSON-снимки в data/raw (новые первыми)."""
+    """Устаревшие JSON-снимки в data/raw (только при AT_ENABLE_LEGACY_JSON=yes)."""
     if not RAW_DIR.is_dir():
         return []
     paths = sorted(RAW_DIR.glob("reads_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -24,6 +27,13 @@ def list_raw_snapshots(*, book_id: int | None = None) -> list[Path]:
         return paths
     prefix = f"reads_{book_id}_"
     return [p for p in paths if p.name.startswith(prefix)]
+
+
+def _require_mssql(settings: Settings) -> None:
+    if not settings.has_mssql():
+        raise RuntimeError(
+            "Отчёты строятся из MS SQL. Настройте MSSQL_* или MSSQL_CONNECTION_STRING в .env"
+        )
 
 
 def load_funnel_steps(
@@ -37,13 +47,17 @@ def load_funnel_steps(
     baseline_chapter_order: int | None = None,
 ) -> list[FunnelStep]:
     if json_path is not None:
+        if not settings.enable_legacy_json:
+            raise RuntimeError(
+                "JSON отключён (источник правды — MS SQL). "
+                "Для отладки задайте AT_ENABLE_LEGACY_JSON=yes"
+            )
         return funnel_from_json(
             json_path,
             skip_book_page=skip_book_page,
             baseline_chapter_order=baseline_chapter_order,
         )
-    if not settings.has_mssql():
-        raise RuntimeError("MS SQL не настроен. Укажите JSON или настройте .env")
+    _require_mssql(settings)
     return funnel_from_mssql(
         settings,
         book_id,
@@ -67,14 +81,20 @@ def load_funnel_compare(
     baseline_chapter_order: int,
     skip_book_page: bool = False,
 ) -> FunnelCompareReport:
-    if json_path_a and json_path_b:
+    if json_path_a or json_path_b:
+        if not settings.enable_legacy_json:
+            raise RuntimeError(
+                "JSON отключён (источник правды — MS SQL). "
+                "Для отладки задайте AT_ENABLE_LEGACY_JSON=yes"
+            )
+        if not (json_path_a and json_path_b):
+            raise RuntimeError("Укажите оба json_path_a и json_path_b")
         matrix_a = daily_matrix_from_json(json_path_a)
         matrix_b = daily_matrix_from_json(json_path_b)
-    elif settings.has_mssql():
+    else:
+        _require_mssql(settings)
         matrix_a = daily_matrix_from_mssql(settings, book_id, period_a_start, period_a_end)
         matrix_b = daily_matrix_from_mssql(settings, book_id, period_b_start, period_b_end)
-    else:
-        raise RuntimeError("Укажите два JSON или настройте MS SQL в .env")
 
     return compare_funnel_periods(
         matrix_a,

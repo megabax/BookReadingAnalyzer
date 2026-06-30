@@ -4,7 +4,7 @@
 
 ## Назначение системы
 
-Загрузка статистики прочтений с [author.today](https://author.today) (Kendo Grid через Selenium), сохранение в JSON и MS SQL, построение отчётов (воронка, сравнение периодов).
+Загрузка статистики прочтений с [author.today](https://author.today) (Kendo Grid через Selenium), сохранение в **MS SQL** (источник правды для отчётов) и опционально в JSON (`data/raw/`, legacy), построение отчётов (воронка, сравнение периодов).
 
 ## Слои
 
@@ -41,24 +41,22 @@ selenium_stats.py / scripts/*
 
 ## Поток отчётов
 
+**Источник правды:** MS SQL. JSON — legacy (`AT_ENABLE_LEGACY_JSON=yes` для `--json` в CLI).
+
 ### Воронка (`report_funnel.py`)
 
 ```
-JSON file ──► funnel_from_json()     ──┐
-                                       ├──► build_funnel() ──► print / CSV
-MS SQL ─────► funnel_from_mssql()   ──┘
+MS SQL ─────► funnel_from_mssql() ──► build_funnel() ──► print / CSV
 ```
 
 ### Сравнение (`report_funnel_compare.py`)
 
 ```
-JSON A/B ──► daily_matrix_from_json()     ──┐
-                                            ├──► compare_funnel_periods() ──► print / CSV
-MS SQL A/B ► daily_matrix_from_mssql()    ──┘
+MS SQL A/B ► daily_matrix_from_mssql() ──► compare_funnel_periods() ──► print / CSV
          └──► stats_test.welch_ttest_pvalue() по каждой главе
 ```
 
-**Важно:** загрузка JSON для воронки и для сравнения реализована **разными** парсерами (см. `known_issues.md`).
+**Legacy (скрыто):** `funnel_from_json` / `daily_matrix_from_json` — разные парсеры, только для тестов и отладки (см. `known_issues.md`, ADR-012).
 
 ## Storage
 

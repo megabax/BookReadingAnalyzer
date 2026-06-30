@@ -12,11 +12,12 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def _run_script(script: str, *args: str) -> subprocess.CompletedProcess[str]:
+def _run_script(script: str, *args: str, **env_extra: str) -> subprocess.CompletedProcess[str]:
     env = {
         **os.environ,
         "PYTHONUTF8": "1",
         "PYTHONIOENCODING": "utf-8",
+        **env_extra,
     }
     return subprocess.run(
         [sys.executable, str(ROOT / script), *args],
@@ -57,6 +58,7 @@ def test_report_funnel_json_fixture(minimal_snapshot_path: Path):
         "--skip-book-page",
         "--base-order",
         "2",
+        AT_ENABLE_LEGACY_JSON="yes",
     )
     assert result.returncode == 0, result.stderr
     assert "book_id=1" in result.stdout
@@ -81,6 +83,7 @@ def test_report_funnel_compare_json_fixture(minimal_snapshot_path: Path):
         "--base-order",
         "2",
         "--skip-book-page",
+        AT_ENABLE_LEGACY_JSON="yes",
     )
     assert result.returncode == 0, result.stderr
     assert "chapter_order=2" in result.stdout

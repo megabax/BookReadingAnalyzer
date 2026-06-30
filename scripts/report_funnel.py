@@ -28,7 +28,11 @@ def main() -> int:
     parser.add_argument("--book-id", type=int, help="ID книги (AT_BOOK_ID / AT_WORK_ID)")
     parser.add_argument("--start", type=str, help="Начало периода YYYY-MM-DD")
     parser.add_argument("--end", type=str, help="Конец периода YYYY-MM-DD")
-    parser.add_argument("--json", type=Path, help="Взять данные из JSON (data/raw/...)")
+    parser.add_argument(
+        "--json",
+        type=Path,
+        help="(устарело) JSON из data/raw; только с AT_ENABLE_LEGACY_JSON=yes",
+    )
     parser.add_argument(
         "--skip-book-page",
         action="store_true",
@@ -62,6 +66,13 @@ def main() -> int:
 
     try:
         if args.json:
+            if not settings.enable_legacy_json:
+                print(
+                    "Ошибка: --json отключён (источник правды — MS SQL). "
+                    "Для отладки: AT_ENABLE_LEGACY_JSON=yes",
+                    file=sys.stderr,
+                )
+                return 1
             json_data = json.loads(args.json.read_text(encoding="utf-8"))
             if args.book_id is None and json_data.get("book_id") is not None:
                 book_id = int(json_data["book_id"])
@@ -100,7 +111,7 @@ def main() -> int:
             )
         else:
             print(
-                "Ошибка: укажите --json или настройте MS SQL в .env",
+                "Ошибка: настройте MS SQL в .env (источник данных для отчётов)",
                 file=sys.stderr,
             )
             return 1

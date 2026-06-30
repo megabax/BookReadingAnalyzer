@@ -59,6 +59,7 @@ class Settings:
     mssql_driver: str = "ODBC Driver 17 for SQL Server"
     mssql_trusted_connection: bool = False
     mssql_trust_server_certificate: bool = True
+    enable_legacy_json: bool = False
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -86,6 +87,9 @@ class Settings:
             mssql_trust_server_certificate=os.getenv("MSSQL_TRUST_SERVER_CERTIFICATE", "yes")
             .lower()
             not in ("0", "false", "no"),
+            enable_legacy_json=os.getenv("AT_ENABLE_LEGACY_JSON", "")
+            .lower()
+            in ("1", "true", "yes"),
         )
 
     def has_auto_login(self) -> bool:
