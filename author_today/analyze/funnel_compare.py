@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 import csv
-import json
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
 from author_today.analyze.stats_test import mean_and_sigma, welch_ttest_pvalue
+from author_today.domain.models import DailyMatrix, ReadSnapshot
 from author_today.storage.mssql_repo import create_mssql_repository
 from config.settings import Settings
-
-# read_date -> site_chapter_order -> (name, views)
-DailyMatrix = dict[date, dict[int, tuple[str, int]]]
 
 
 @dataclass(frozen=True)
@@ -176,19 +173,12 @@ def compare_funnel_periods(
     )
 
 
+def daily_matrix_from_snapshot(snapshot: ReadSnapshot) -> DailyMatrix:
+    return snapshot.daily_matrix()
+
+
 def daily_matrix_from_json(path: Path) -> DailyMatrix:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    matrix: DailyMatrix = {}
-    for day in data.get("dates", []):
-        read_date = date.fromisoformat(str(day["date"])[:10])
-        by_order: dict[int, tuple[str, int]] = {}
-        for idx, ch in enumerate(day.get("chapters", [])):
-            order = idx + 1
-            name = str(ch["chapter"])
-            views = int(ch.get("views") or 0)
-            by_order[order] = (name, views)
-        matrix[read_date] = by_order
-    return matrix
+    return daily_matrix_from_snapshot(ReadSnapshot.from_json(path))
 
 
 def daily_matrix_from_mssql(
@@ -197,8 +187,10 @@ def daily_matrix_from_mssql(
     period_start: date,
     period_end: date,
 ) -> DailyMatrix:
-    repo = create_mssql_repository(settings)
-    return repo.daily_chapter_matrix(book_id, period_start, period_end)
+    snapshot = create_mssql_repository(settings).load_snapshot(
+        book_id, period_start, period_end
+    )
+    return daily_matrix_from_snapshot(snapshot)
 
 
 def _fmt_decimal(value: float, places: int = 2) -> str:

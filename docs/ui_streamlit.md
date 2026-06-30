@@ -140,19 +140,19 @@ def cached_funnel(...):
 
 | Сначала (блокирует качественный UI) | Можно параллельно с UI-скелетом |
 |-------------------------------------|----------------------------------|
-| §3 `MSSQL → ReadSnapshot` | Каркас `streamlit_app.py`, tabs |
-| §7 сервисный слой / cli_common | `services/reports.py` (уже есть) |
-| Тесты на analyze | `.streamlit/config.toml` |
+| §7 сервисный слой / cli_common | Каркас `streamlit_app.py`, tabs |
+| Ручной smoke MSSQL на своей книге | `services/reports.py` (готово) |
 
 | Уже сделано | |
 |-------------|--|
 | §1 book_id | ✅ |
 | §2 SQL в `mssql_repo` | ✅ |
+| §3 MSSQL → ReadSnapshot | ✅ |
 | §4 тесты | ✅ (unit + smoke) |
 | §0 docs | ✅ |
 | JSON скрыт (ADR-012) | ✅ |
 
-**Порядок:** §3 → подключить отчёты в Streamlit (этап A) → §7 → этап B → Selenium в UI (этап C).
+**Порядок:** подключить отчёты в Streamlit (этап A) → §7 → этап B → Selenium в UI (этап C).
 
 ---
 

@@ -16,10 +16,10 @@
 
 ## ADR-002: Каноническая модель для аналитики
 
-**Статус:** принято  
-**Контекст:** JSON парсится по-разному в funnel и funnel_compare.  
-**Решение:** единая точка — **`ReadSnapshot`**; загрузка `from_json(path)`, `from_stats_table()`, из MSSQL (будущий loader). Все отчёты строятся от snapshot или производных (`DailyMatrix` из snapshot).  
-**Последствия:** `funnel_from_json` / `daily_matrix_from_json` становятся тонкими обёртками или удаляются.
+**Статус:** принято, реализовано (2026-06, §3)  
+**Контекст:** JSON парсился по-разному в funnel и funnel_compare.  
+**Решение:** единая точка — **`ReadSnapshot`**; загрузка `from_json`, `from_stats_table`, `mssql_repo.load_snapshot()`. Отчёты — `funnel_from_snapshot()` / `daily_matrix()`.  
+**Последствия:** legacy JSON-парсеры — тонкие обёртки над snapshot.
 
 ---
 

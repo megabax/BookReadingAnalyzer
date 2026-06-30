@@ -51,7 +51,7 @@ with tab_funnel:
     st.subheader("Воронка дочитываний")
     st.markdown(
         "Экран подключит `author_today.services.reports.load_funnel_steps` "
-        "после завершения рефакторинга §2–§3 (SQL в repo, ReadSnapshot)."
+        "(repo → ReadSnapshot → analyze)."
     )
 
 with tab_compare:

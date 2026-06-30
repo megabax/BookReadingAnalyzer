@@ -4,13 +4,11 @@
 
 ## Баги
 
-### 1. Даты через границу года
+### 1. Даты через границу года — исправлено (2026-06)
 
-**Файл:** `author_today/domain/models.py` → `ReadSnapshot.from_stats_table`
+**Файл:** `author_today/domain/models.py` → `parse_dd_mm_columns`, `ReadSnapshot.from_stats_table`
 
-Всем колонкам `DD.MM` присваивается `period_end.year`. Период декабрь–январь даёт неверный год для декабрьских дней.
-
-**Воспроизведение:** `--start 2025-12-01 --end 2026-01-31`.
+Год увеличивается при «откате» месяца в заголовках `DD.MM` (от `period_start.year`).
 
 ---
 

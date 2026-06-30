@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-import json
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -109,13 +108,8 @@ def funnel_from_snapshot(
     skip_book_page: bool = False,
     baseline_chapter_order: int | None = None,
 ) -> list[FunnelStep]:
-    totals: list[tuple[int, str, int]] = []
-    for idx, chapter in enumerate(snapshot.chapters):
-        order = idx + 1
-        views = sum(v or 0 for v in snapshot.values[idx])
-        totals.append((order, chapter, views))
     return build_funnel(
-        totals,
+        snapshot.chapter_totals(),
         skip_book_page=skip_book_page,
         baseline_chapter_order=baseline_chapter_order,
     )
@@ -127,23 +121,8 @@ def funnel_from_json(
     skip_book_page: bool = False,
     baseline_chapter_order: int | None = None,
 ) -> list[FunnelStep]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    totals: dict[str, int] = {}
-    chapter_names: list[str] = []
-    seen: set[str] = set()
-
-    for day in data.get("dates", []):
-        for ch in day.get("chapters", []):
-            name = str(ch["chapter"])
-            views = int(ch.get("views") or 0)
-            totals[name] = totals.get(name, 0) + views
-            if name not in seen:
-                seen.add(name)
-                chapter_names.append(name)
-
-    rows = [(idx + 1, name, totals[name]) for idx, name in enumerate(chapter_names)]
-    return build_funnel(
-        rows,
+    return funnel_from_snapshot(
+        ReadSnapshot.from_json(path),
         skip_book_page=skip_book_page,
         baseline_chapter_order=baseline_chapter_order,
     )
@@ -158,10 +137,11 @@ def funnel_from_mssql(
     skip_book_page: bool = False,
     baseline_chapter_order: int | None = None,
 ) -> list[FunnelStep]:
-    repo = create_mssql_repository(settings)
-    rows = repo.aggregate_chapter_views(book_id, period_start, period_end)
-    return build_funnel(
-        rows,
+    snapshot = create_mssql_repository(settings).load_snapshot(
+        book_id, period_start, period_end
+    )
+    return funnel_from_snapshot(
+        snapshot,
         skip_book_page=skip_book_page,
         baseline_chapter_order=baseline_chapter_order,
     )

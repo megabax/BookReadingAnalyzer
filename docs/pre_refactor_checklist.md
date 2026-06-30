@@ -15,18 +15,18 @@
 - [x] Создана структура `tests/` по `testing_strategy.md`
 - [x] Добавлен `tests/fixtures/snapshot_minimal.json`
 - [x] Unit-тесты на funnel, compare, stats, periods — зелёные
-- [x] Cross-year тест помечен `xfail` (до фикса бага)
+- [x] Cross-year тест green
 
 **Критерий выхода:** `pytest` проходит; можно менять analyze с уверенностью.
 
 ---
 
-## Фаза 1: ReadSnapshot.from_json + даты
+## Фаза 1: ReadSnapshot + MSSQL → snapshot
 
-- [ ] Прочитан ADR-002, ADR-005 (если трогаете sync)
-- [ ] Добавлен `ReadSnapshot.from_json(path)`
-- [ ] `funnel_from_json` / `daily_matrix_from_json` используют snapshot
-- [ ] Исправлен cross-year в `from_stats_table` + тест снят с `xfail`
+- [x] Прочитан ADR-002, ADR-005 (если трогаете sync)
+- [x] Добавлен `ReadSnapshot.from_json(path)`
+- [x] `funnel_from_json` / `daily_matrix_from_json` используют snapshot
+- [x] Исправлен cross-year в `from_stats_table` + тест green
 - [ ] Ручной smoke: воронка и compare из MSSQL согласованы с доменной моделью
 
 **Критерий выхода:** загрузка снимка из MSSQL в `ReadSnapshot`; cross-year тест green.

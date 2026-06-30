@@ -34,16 +34,37 @@ def _mock_connect(fetchall_results: list[list] | None = None, fetchone_results: 
 
 
 @patch("author_today.storage.mssql_repo.connect")
+def test_load_snapshot(mock_connect_fn, repo: MssqlReadRepository):
+    conn, cursor = _mock_connect(
+        fetchall_results=[
+            [
+                (date(2025, 7, 1), 1, "Глава 1", 100),
+                (date(2025, 7, 1), 2, "Глава 2", 50),
+            ]
+        ],
+        fetchone_results=[(datetime(2026, 6, 1, 12, 0, 0),)],
+    )
+    mock_connect_fn.return_value.__enter__.return_value = conn
+
+    snapshot = repo.load_snapshot(323389, date(2025, 7, 1), date(2025, 7, 31))
+
+    assert snapshot.book_id == 323389
+    assert snapshot.chapter_orders == (1, 2)
+    assert snapshot.chapter_totals() == [(1, "Глава 1", 100), (2, "Глава 2", 50)]
+    assert cursor.execute.call_count == 2
+
+
+@patch("author_today.storage.mssql_repo.connect")
 def test_aggregate_chapter_views(mock_connect_fn, repo: MssqlReadRepository):
-    conn, cursor = _mock_connect(fetchall_results=[[(1, "Глава 1", 100), (2, "Глава 2", 50)]])
+    conn, cursor = _mock_connect(
+        fetchall_results=[[(date(2025, 7, 1), 1, "Глава 1", 100), (date(2025, 7, 1), 2, "Глава 2", 50)]],
+        fetchone_results=[(datetime(2026, 6, 1, 12, 0, 0),)],
+    )
     mock_connect_fn.return_value.__enter__.return_value = conn
 
     rows = repo.aggregate_chapter_views(323389, date(2025, 7, 1), date(2025, 7, 31))
 
     assert rows == [(1, "Глава 1", 100), (2, "Глава 2", 50)]
-    sql = cursor.execute.call_args[0][0]
-    assert "SUM(COALESCE(cr.views, 0))" in sql
-    assert cursor.execute.call_args[0][1:] == (323389, date(2025, 7, 1), date(2025, 7, 31))
 
 
 @patch("author_today.storage.mssql_repo.connect")
@@ -54,7 +75,8 @@ def test_daily_chapter_matrix(mock_connect_fn, repo: MssqlReadRepository):
                 (date(2025, 7, 1), 1, "Глава 1", 10),
                 (date(2025, 7, 1), 2, "Глава 2", 5),
             ]
-        ]
+        ],
+        fetchone_results=[(datetime(2026, 6, 1, 12, 0, 0),)],
     )
     mock_connect_fn.return_value.__enter__.return_value = conn
 

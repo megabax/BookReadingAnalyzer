@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import json
 from datetime import date, datetime
 
-import pytest
+from author_today.domain.models import ReadSnapshot, StatsTable, parse_dd_mm_columns
 
-from author_today.domain.models import ReadSnapshot, StatsTable
-from tests.conftest import read_snapshot_from_json
+
+def test_parse_dd_mm_columns_cross_year():
+    assert parse_dd_mm_columns(["28.12", "02.01"], date(2025, 12, 1)) == (
+        date(2025, 12, 28),
+        date(2026, 1, 2),
+    )
 
 
 def test_from_stats_table_same_year():
@@ -32,7 +35,6 @@ def test_from_stats_table_same_year():
     assert snap.values[1] == (5, 15)
 
 
-@pytest.mark.xfail(reason="known_issues §1: год берётся только из period_end")
 def test_from_stats_table_cross_year():
     table = StatsTable(
         dates=["28.12", "02.01"],
@@ -59,15 +61,34 @@ def test_to_document_roundtrip(minimal_snapshot: ReadSnapshot):
 
 
 def test_read_snapshot_from_json_fixture(minimal_snapshot_path):
-    snap = read_snapshot_from_json(minimal_snapshot_path)
+    snap = ReadSnapshot.from_json(minimal_snapshot_path)
     assert snap.book_id == 1
     assert len(snap.dates) == 2
     assert snap.chapters[2] == "Глава 2"
     assert snap.values[2][0] == 40
 
 
+def test_from_aggregated_rows():
+    snap = ReadSnapshot.from_aggregated_rows(
+        book_id=1,
+        period_start=date(2025, 7, 1),
+        period_end=date(2025, 7, 2),
+        fetched_at=datetime(2026, 1, 1),
+        rows=[
+            (date(2025, 7, 1), 1, "Глава 1", 10),
+            (date(2025, 7, 1), 2, "Глава 2", 5),
+            (date(2025, 7, 2), 1, "Глава 1", 20),
+            (date(2025, 7, 2), 2, "Глава 2", 15),
+        ],
+    )
+    assert snap.chapter_orders == (1, 2)
+    assert snap.chapter_totals() == [(1, "Глава 1", 30), (2, "Глава 2", 20)]
+    matrix = snap.daily_matrix()
+    assert matrix[date(2025, 7, 1)][1] == ("Глава 1", 10)
+
+
 def test_funnel_snapshot_matches_json_path(minimal_snapshot, minimal_snapshot_path):
-    """Снимок из conftest и воронка из JSON должны согласовываться по суммам."""
+    """Снимок из фикстуры и воронка из JSON должны согласовываться по суммам."""
     from author_today.analyze.funnel import funnel_from_json, funnel_from_snapshot
 
     steps_json = funnel_from_json(minimal_snapshot_path, skip_book_page=True)

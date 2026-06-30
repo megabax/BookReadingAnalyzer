@@ -105,39 +105,14 @@ class MssqlReadRepository:
             columns = [col[0] for col in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-    def aggregate_chapter_views(
+    def load_snapshot(
         self,
         book_id: int,
         period_start: date,
         period_end: date,
-    ) -> list[ChapterViewsRow]:
-        """Сумма просмотров по главам за период (все run'ы книги)."""
-        sql = """
-            SELECT
-                cr.chapter_order,
-                cr.chapter_name,
-                SUM(COALESCE(cr.views, 0)) AS total_views
-            FROM dbo.chapter_reads cr
-            INNER JOIN dbo.fetch_runs fr ON fr.id = cr.run_id
-            WHERE fr.work_id = ?
-              AND cr.read_date >= ?
-              AND cr.read_date <= ?
-            GROUP BY cr.chapter_order, cr.chapter_name
-            ORDER BY cr.chapter_order
-        """
-        with connect(self.settings) as conn:
-            cursor = conn.cursor()
-            cursor.execute(sql, book_id, period_start, period_end)
-            return [(int(r[0]), str(r[1]), int(r[2])) for r in cursor.fetchall()]
-
-    def daily_chapter_matrix(
-        self,
-        book_id: int,
-        period_start: date,
-        period_end: date,
-    ) -> DailyChapterMatrix:
-        """Дневная матрица просмотров: дата → chapter_order → (имя, views)."""
-        sql = """
+    ) -> ReadSnapshot:
+        """Агрегированный снимок прочтений за период (все run'ы книги)."""
+        reads_sql = """
             SELECT
                 cr.read_date,
                 cr.chapter_order,
@@ -151,15 +126,57 @@ class MssqlReadRepository:
             GROUP BY cr.read_date, cr.chapter_order, cr.chapter_name
             ORDER BY cr.read_date, cr.chapter_order
         """
-        matrix: DailyChapterMatrix = {}
+        fetched_sql = """
+            SELECT MAX(fr.fetched_at)
+            FROM dbo.fetch_runs fr
+            INNER JOIN dbo.chapter_reads cr ON cr.run_id = fr.id
+            WHERE fr.work_id = ?
+              AND cr.read_date >= ?
+              AND cr.read_date <= ?
+        """
+        params = (book_id, period_start, period_end)
         with connect(self.settings) as conn:
             cursor = conn.cursor()
-            cursor.execute(sql, book_id, period_start, period_end)
+            cursor.execute(reads_sql, params)
+            rows: list[tuple[date, int, str, int]] = []
             for read_date, chapter_order, chapter_name, views in cursor.fetchall():
                 d = read_date if isinstance(read_date, date) else date.fromisoformat(str(read_date)[:10])
-                order = int(chapter_order)
-                matrix.setdefault(d, {})[order] = (str(chapter_name), int(views))
-        return matrix
+                rows.append((d, int(chapter_order), str(chapter_name), int(views)))
+            cursor.execute(fetched_sql, params)
+            fetched_raw = cursor.fetchone()[0]
+            if fetched_raw is None:
+                fetched_at = datetime.now()
+            elif isinstance(fetched_raw, datetime):
+                fetched_at = fetched_raw
+            else:
+                fetched_at = datetime.fromisoformat(str(fetched_raw).replace("Z", "+00:00"))
+
+        return ReadSnapshot.from_aggregated_rows(
+            book_id=book_id,
+            period_start=period_start,
+            period_end=period_end,
+            fetched_at=fetched_at,
+            rows=rows,
+        )
+
+    def aggregate_chapter_views(
+        self,
+        book_id: int,
+        period_start: date,
+        period_end: date,
+    ) -> list[ChapterViewsRow]:
+        """Сумма просмотров по главам за период (все run'ы книги)."""
+        snapshot = self.load_snapshot(book_id, period_start, period_end)
+        return snapshot.chapter_totals()
+
+    def daily_chapter_matrix(
+        self,
+        book_id: int,
+        period_start: date,
+        period_end: date,
+    ) -> DailyChapterMatrix:
+        """Дневная матрица просмотров: дата → chapter_order → (имя, views)."""
+        return self.load_snapshot(book_id, period_start, period_end).daily_matrix()
 
     def preview_delete_runs_by_fetched_at(
         self,

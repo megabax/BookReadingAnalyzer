@@ -48,7 +48,7 @@
 
 ---
 
-### 3. Единая доменная модель: MS SQL → `ReadSnapshot`
+### 3. Единая доменная модель: MS SQL → `ReadSnapshot` ✅
 
 **Источник правды — MS SQL** (ADR-012). JSON в `data/raw/` — legacy, скрыт из UI/CLI; удаление кода — позже.
 
@@ -58,13 +58,7 @@
 mssql_repo.load_snapshot(...) ──► ReadSnapshot ──► funnel / compare
 ```
 
-**Проблема сейчас:** SQL и сборка снимка размазаны по `funnel.py`, `funnel_compare.py`, `delete_runs.py`; два устаревших JSON-парсера (`funnel_from_json`, `daily_matrix_from_json`) расходятся между собой.
-
-**Рекомендация:**
-
-- загрузка снимка из БД в `mssql_repo` → `ReadSnapshot`
-- отчёты только через `funnel_from_snapshot()` / матрицу из snapshot
-- `ReadSnapshot.from_json(path)` — **для тестов и фикстур**, не продакшен-путь
+**Реализовано:** `load_snapshot`, `ReadSnapshot.from_json`, `chapter_totals()` / `daily_matrix()`, cross-year в `parse_dd_mm_columns`.
 
 ---
 
@@ -83,20 +77,9 @@ mssql_repo.load_snapshot(...) ──► ReadSnapshot ──► funnel / compare
 
 ---
 
-### 5. Баг: даты через границу года
+### 5. Баг: даты через границу года ✅
 
-В `ReadSnapshot.from_stats_table` всем заголовкам `DD.MM` подставляется `period_end.year`:
-
-```python
-year = period_end.year
-parsed_dates = tuple(
-    date(year, int(d.split(".")[1]), int(d.split(".")[0])) for d in table.dates
-)
-```
-
-**Проблема:** период `2025-12-01` — `2026-01-31` даст неверные даты для декабря.
-
-**Рекомендация:** вывод года по контексту `period_start` / `period_end` (инкремент при «откате» месяца). Тест на cross-year период.
+Исправлено в `parse_dd_mm_columns()` (`author_today/domain/models.py`).
 
 ---
 
@@ -265,7 +248,7 @@ README описывает `analyze/` как «сводки и reclan.csv», то
 
 ### 18. Веб-интерфейс (Streamlit) 🚧 подготовлено
 
-**Статус:** каркас и документация готовы; рабочие экраны — после §2–§3.
+**Статус:** каркас готов; рабочие экраны отчётов — этап A (§2–§3 ✅).
 
 | Компонент | Путь | Статус |
 |-----------|------|--------|
@@ -289,8 +272,8 @@ README описывает `analyze/` как «сводки и reclan.csv», то
 
 ```mermaid
 flowchart TD
-    A["1. Тесты ✅"] --> B["2. MSSQL → ReadSnapshot + даты"]
-    B --> C["3. SQL в mssql_repo"]
+    A["1. Тесты ✅"] --> B["2. MSSQL → ReadSnapshot ✅"]
+    B --> C["3. SQL в mssql_repo ✅"]
     C --> D["4. book_id в CLI ✅"]
     D --> E["5. cli_common / services"]
     E --> F["6. Дедуп analyze"]
@@ -299,12 +282,12 @@ flowchart TD
 ```
 
 1. **Тесты** — ✅ сделано
-2. **MSSQL → ReadSnapshot** — единый путь отчётов; JSON только в тестах
-3. **SQL в storage** — ✅ сделано (п. 2); **блокировало UI — снято для §3**
+2. **MSSQL → ReadSnapshot** — ✅ сделано (п. 3)
+3. **SQL в storage** — ✅ сделано (п. 2)
 4. **Именование** — ✅ сделано (п. 1)
 5. **CLI / services** — `author_today/services/` начат под Streamlit
 6. **Заглушки и README** — по мере сил
-7. **Streamlit** — каркас ✅; отчёты в UI после п. 2–3 (см. §18)
+7. **Streamlit** — каркас ✅; отчёты в UI — этап A (§2–§3 готовы)
 
 ---
 

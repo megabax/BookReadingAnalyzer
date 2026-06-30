@@ -8,13 +8,14 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from author_today.analyze.funnel import FunnelStep, funnel_from_json, funnel_from_mssql
+from author_today.analyze.funnel import FunnelStep, funnel_from_snapshot
 from author_today.analyze.funnel_compare import (
     FunnelCompareReport,
     compare_funnel_periods,
-    daily_matrix_from_json,
-    daily_matrix_from_mssql,
+    daily_matrix_from_snapshot,
 )
+from author_today.domain.models import ReadSnapshot
+from author_today.storage.mssql_repo import create_mssql_repository
 from config.settings import RAW_DIR, Settings
 
 
@@ -36,6 +37,18 @@ def _require_mssql(settings: Settings) -> None:
         )
 
 
+def load_read_snapshot(
+    settings: Settings,
+    book_id: int,
+    period_start: date,
+    period_end: date,
+) -> ReadSnapshot:
+    _require_mssql(settings)
+    return create_mssql_repository(settings).load_snapshot(
+        book_id, period_start, period_end
+    )
+
+
 def load_funnel_steps(
     settings: Settings,
     book_id: int,
@@ -52,17 +65,11 @@ def load_funnel_steps(
                 "JSON отключён (источник правды — MS SQL). "
                 "Для отладки задайте AT_ENABLE_LEGACY_JSON=yes"
             )
-        return funnel_from_json(
-            json_path,
-            skip_book_page=skip_book_page,
-            baseline_chapter_order=baseline_chapter_order,
-        )
-    _require_mssql(settings)
-    return funnel_from_mssql(
-        settings,
-        book_id,
-        period_start,
-        period_end,
+        snapshot = ReadSnapshot.from_json(json_path)
+    else:
+        snapshot = load_read_snapshot(settings, book_id, period_start, period_end)
+    return funnel_from_snapshot(
+        snapshot,
         skip_book_page=skip_book_page,
         baseline_chapter_order=baseline_chapter_order,
     )
@@ -89,12 +96,15 @@ def load_funnel_compare(
             )
         if not (json_path_a and json_path_b):
             raise RuntimeError("Укажите оба json_path_a и json_path_b")
-        matrix_a = daily_matrix_from_json(json_path_a)
-        matrix_b = daily_matrix_from_json(json_path_b)
+        matrix_a = daily_matrix_from_snapshot(ReadSnapshot.from_json(json_path_a))
+        matrix_b = daily_matrix_from_snapshot(ReadSnapshot.from_json(json_path_b))
     else:
-        _require_mssql(settings)
-        matrix_a = daily_matrix_from_mssql(settings, book_id, period_a_start, period_a_end)
-        matrix_b = daily_matrix_from_mssql(settings, book_id, period_b_start, period_b_end)
+        matrix_a = daily_matrix_from_snapshot(
+            load_read_snapshot(settings, book_id, period_a_start, period_a_end)
+        )
+        matrix_b = daily_matrix_from_snapshot(
+            load_read_snapshot(settings, book_id, period_b_start, period_b_end)
+        )
 
     return compare_funnel_periods(
         matrix_a,
