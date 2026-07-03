@@ -9,6 +9,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from author_today.cli import main
+from author_today.cli_reminders import run_with_manual_smoke_reminder
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_with_manual_smoke_reminder(main))

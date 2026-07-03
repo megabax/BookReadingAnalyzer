@@ -129,4 +129,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from author_today.cli_reminders import run_with_manual_smoke_reminder
+
+    sys.exit(run_with_manual_smoke_reminder(main))

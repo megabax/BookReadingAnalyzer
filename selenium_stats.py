@@ -8,4 +8,6 @@
 from author_today.cli import main
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from author_today.cli_reminders import run_with_manual_smoke_reminder
+
+    raise SystemExit(run_with_manual_smoke_reminder(main))
