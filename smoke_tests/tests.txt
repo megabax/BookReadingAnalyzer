@@ -1,0 +1,8 @@
+python scripts/report_funnel.py --book-id 172953 --start 2025-07-01 --end 2025-07-31 --csv smoke_tests/report_funnel__172953__2025-07-01__2025-07-31.csv
+python scripts/report_funnel_compare.py --book-id 172953 --base-order 2 ^
+  --start-a 2025-07-01 --end-a 2025-07-31 ^
+  --start-b 2025-08-01 --end-b 2025-08-31 --skip-book-page --csv ^
+  smoke_tests/report_funnel_compare__172953__2025-07-01__2025-07-31__vs__2025-08-01__2025-08-31.csv
+
+  
+report_funnel_compare__{book_id}__{start-a}__{end-a}__vs__{start-b}__{end-b}.csv
