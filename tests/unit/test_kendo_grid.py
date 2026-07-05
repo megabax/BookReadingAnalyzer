@@ -70,3 +70,30 @@ def test_merge_scroll_slice_overwrites_with_later_pass():
     )
 
     assert chapter_values["Глава 1"]["01.06"] == 23
+
+
+def test_vertical_passes_collect_chapters_in_order():
+    date_order: list[str] = []
+    chapter_values: dict[str, dict[str, int | None]] = {}
+    chapter_order: list[str] = []
+
+    merge_scroll_slice(
+        date_order,
+        chapter_values,
+        chapter="Глава 1",
+        dates_batch=["01.06"],
+        values=[1],
+        chapter_order=chapter_order,
+    )
+    merge_scroll_slice(
+        date_order,
+        chapter_values,
+        chapter="Глава 16",
+        dates_batch=["01.06"],
+        values=[2],
+        chapter_order=chapter_order,
+    )
+
+    table = stats_table_from_maps(date_order, chapter_values, chapter_order)
+    assert [row["chapter"] for row in table.rows] == ["Глава 1", "Глава 16"]
+    assert table.rows[1]["01.06"] == 2

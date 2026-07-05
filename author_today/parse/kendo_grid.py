@@ -16,6 +16,7 @@ DATE_RE = re.compile(r"^\d{2}\.\d{2}$")
 CHAPTER_MARKERS = ("глава", "интерлюдия", "страница книги", "вместо эпилога", "часть")
 SCROLL_SETTLE_S = 0.2
 MAX_SCROLL_PASSES = 40
+MAX_VERTICAL_SCROLL_PASSES = 50
 
 
 def _cell_texts(row) -> list[str]:
@@ -150,6 +151,84 @@ return {dates, indices};
 """
 
 
+_KENDO_DATASOURCE_JS = """
+const el = arguments[0];
+if (!el || typeof jQuery === 'undefined') return null;
+const grid = jQuery(el).data('kendoGrid');
+if (!grid || !grid.dataSource) return null;
+
+const dateCols = [];
+let chapterCol = null;
+for (const col of grid.columns) {
+    const title = String(col.title || '').trim();
+    if (/^\\d{2}\\.\\d{2}$/.test(title)) {
+        dateCols.push({title: title, field: col.field});
+    } else if (col.locked && !chapterCol) {
+        chapterCol = col;
+    }
+}
+if (!chapterCol) chapterCol = grid.columns[0];
+if (!dateCols.length || !chapterCol || !chapterCol.field) return null;
+
+const chapterField = chapterCol.field;
+const dates = dateCols.map((c) => c.title);
+const rows = [];
+for (const item of grid.dataSource.data()) {
+    const chapter = String(item[chapterField] ?? '').trim();
+    if (!chapter || chapter === 'Часть') continue;
+    const values = {};
+    for (const dc of dateCols) {
+        const raw = item[dc.field];
+        if (raw === null || raw === undefined || raw === '') {
+            values[dc.title] = null;
+        } else {
+            const n = Number(raw);
+            values[dc.title] = Number.isFinite(n) ? n : null;
+        }
+    }
+    rows.push({chapter, values});
+}
+if (!rows.length) return null;
+return {dates, rows};
+"""
+
+
+def _table_row_allowed(chapter: str) -> bool:
+    if not chapter or chapter == "Часть":
+        return False
+    return _is_chapter_label(chapter) or chapter == "Страница книги"
+
+
+def _stats_table_from_payload(dates: list[str], rows: list[dict]) -> StatsTable:
+    result = StatsTable(dates=list(dates), rows=[])
+    for row in rows:
+        chapter = str(row["chapter"])
+        if not _table_row_allowed(chapter):
+            continue
+        values = row.get("values", {})
+        row_data: dict[str, str | int | None] = {"chapter": chapter}
+        for day in dates:
+            row_data[day] = values.get(day)
+        result.rows.append(row_data)
+    return result
+
+
+def _extract_kendo_datasource(driver: WebDriver, grid) -> StatsTable | None:
+    """Все строки из dataSource Kendo (если jQuery и виджет доступны)."""
+    try:
+        payload = driver.execute_script(_KENDO_DATASOURCE_JS, grid)
+    except Exception:
+        return None
+    if not payload:
+        return None
+    dates = [str(d) for d in payload.get("dates", [])]
+    rows = payload.get("rows", [])
+    if not dates or not rows:
+        return None
+    table = _stats_table_from_payload(dates, rows)
+    return table if table.rows else None
+
+
 def _visible_viewport_date_slice(
     driver: WebDriver,
     header,
@@ -173,10 +252,13 @@ def merge_scroll_slice(
     chapter: str,
     dates_batch: list[str],
     values: list[int | None],
+    chapter_order: list[str] | None = None,
 ) -> None:
     """Добавить видимый фрагмент таблицы (для тестов и прокрутки)."""
     if chapter not in chapter_values:
         chapter_values[chapter] = {}
+        if chapter_order is not None:
+            chapter_order.append(chapter)
     for day in dates_batch:
         if day not in date_order:
             date_order.append(day)
@@ -190,9 +272,12 @@ def merge_scroll_slice(
 def stats_table_from_maps(
     date_order: list[str],
     chapter_values: dict[str, dict[str, int | None]],
+    chapter_order: list[str] | None = None,
 ) -> StatsTable:
     result = StatsTable(dates=list(date_order), rows=[])
-    for chapter, by_date in chapter_values.items():
+    chapters = chapter_order if chapter_order is not None else list(chapter_values.keys())
+    for chapter in chapters:
+        by_date = chapter_values.get(chapter, {})
         row_data: dict[str, str | int | None] = {"chapter": chapter}
         for day in date_order:
             row_data[day] = by_date.get(day)
@@ -205,6 +290,115 @@ def _sync_header_scroll(header, body_scroll, driver: WebDriver) -> None:
         return
     left = driver.execute_script("return arguments[0].scrollLeft", body_scroll)
     driver.execute_script("arguments[0].scrollLeft = arguments[1]", header, left)
+
+
+def _sync_locked_vertical_scroll(locked, scroll, driver: WebDriver) -> None:
+    top = driver.execute_script("return arguments[0].scrollTop", scroll)
+    driver.execute_script("arguments[0].scrollTop = arguments[1]", locked, top)
+
+
+def _horizontal_scroll_merge(
+    driver: WebDriver,
+    *,
+    grid,
+    locked,
+    scroll,
+    header,
+    date_order: list[str],
+    chapter_values: dict[str, dict[str, int | None]],
+    chapter_order: list[str],
+) -> None:
+    driver.execute_script("arguments[0].scrollLeft = 0", scroll)
+    if header is not None:
+        driver.execute_script("arguments[0].scrollLeft = 0", header)
+    time.sleep(SCROLL_SETTLE_S)
+
+    last_signature = ""
+    for _ in range(MAX_SCROLL_PASSES):
+        dates_batch, date_indices = _visible_viewport_date_slice(driver, header, scroll)
+        if not dates_batch:
+            dates_batch = _visible_header_dates(grid)
+            date_indices = list(range(len(dates_batch)))
+
+        for label, s_row in _locked_scroll_pairs(locked, scroll):
+            if not _table_row_allowed(label):
+                continue
+            s_cells = _cell_texts(s_row)
+            values = _values_for_date_indices(s_cells, date_indices)
+            merge_scroll_slice(
+                date_order,
+                chapter_values,
+                chapter=label,
+                dates_batch=dates_batch,
+                values=values,
+                chapter_order=chapter_order,
+            )
+
+        signature = ",".join(date_order)
+        scroll_left = driver.execute_script("return arguments[0].scrollLeft", scroll)
+        max_left = driver.execute_script(
+            "return Math.max(0, arguments[0].scrollWidth - arguments[0].clientWidth)",
+            scroll,
+        )
+        if scroll_left >= max_left and signature == last_signature:
+            break
+        last_signature = signature
+
+        driver.execute_script(
+            "arguments[0].scrollLeft = Math.min(arguments[0].scrollLeft + arguments[0].clientWidth, arguments[1])",
+            scroll,
+            max_left,
+        )
+        _sync_header_scroll(header, scroll, driver)
+        time.sleep(SCROLL_SETTLE_S)
+
+
+def _extract_via_dom_scroll(driver: WebDriver, grid, locked, scroll, header) -> StatsTable | None:
+    date_order: list[str] = []
+    chapter_values: dict[str, dict[str, int | None]] = {}
+    chapter_order: list[str] = []
+
+    driver.execute_script("arguments[0].scrollTop = 0", scroll)
+    driver.execute_script("arguments[0].scrollTop = 0", locked)
+    driver.execute_script("arguments[0].scrollLeft = 0", scroll)
+    if header is not None:
+        driver.execute_script("arguments[0].scrollLeft = 0", header)
+    time.sleep(SCROLL_SETTLE_S)
+
+    chapters_before = 0
+    for _ in range(MAX_VERTICAL_SCROLL_PASSES):
+        _horizontal_scroll_merge(
+            driver,
+            grid=grid,
+            locked=locked,
+            scroll=scroll,
+            header=header,
+            date_order=date_order,
+            chapter_values=chapter_values,
+            chapter_order=chapter_order,
+        )
+
+        chapters_now = len(chapter_values)
+        scroll_top = driver.execute_script("return arguments[0].scrollTop", scroll)
+        max_top = driver.execute_script(
+            "return Math.max(0, arguments[0].scrollHeight - arguments[0].clientHeight)",
+            scroll,
+        )
+        if scroll_top >= max_top and chapters_now == chapters_before:
+            break
+        chapters_before = chapters_now
+
+        driver.execute_script(
+            "arguments[0].scrollTop = Math.min(arguments[0].scrollTop + arguments[0].clientHeight, arguments[1])",
+            scroll,
+            max_top,
+        )
+        _sync_locked_vertical_scroll(locked, scroll, driver)
+        time.sleep(SCROLL_SETTLE_S)
+
+    if not chapter_values:
+        return None
+    return stats_table_from_maps(date_order, chapter_values, chapter_order)
 
 
 def _locked_body_rows(locked) -> list:
@@ -242,52 +436,14 @@ def _extract_kendo_split(grid, driver: WebDriver) -> StatsTable:
     header = _header_scroll_el(grid)
 
     if locked and scroll:
-        date_order: list[str] = []
-        chapter_values: dict[str, dict[str, int | None]] = {}
-
-        driver.execute_script("arguments[0].scrollLeft = 0", scroll)
-        if header is not None:
-            driver.execute_script("arguments[0].scrollLeft = 0", header)
-        time.sleep(SCROLL_SETTLE_S)
-
-        last_signature = ""
-        for _ in range(MAX_SCROLL_PASSES):
-            dates_batch, date_indices = _visible_viewport_date_slice(driver, header, scroll)
-            if not dates_batch:
-                dates_batch = _visible_header_dates(grid)
-                date_indices = list(range(len(dates_batch)))
-
-            for label, s_row in _locked_scroll_pairs(locked, scroll):
-                s_cells = _cell_texts(s_row)
-                values = _values_for_date_indices(s_cells, date_indices)
-                merge_scroll_slice(
-                    date_order,
-                    chapter_values,
-                    chapter=label,
-                    dates_batch=dates_batch,
-                    values=values,
-                )
-
-            signature = ",".join(date_order)
-            scroll_left = driver.execute_script("return arguments[0].scrollLeft", scroll)
-            max_left = driver.execute_script(
-                "return Math.max(0, arguments[0].scrollWidth - arguments[0].clientWidth)",
-                scroll,
-            )
-            if scroll_left >= max_left and signature == last_signature:
-                break
-            last_signature = signature
-
-            driver.execute_script(
-                "arguments[0].scrollLeft = Math.min(arguments[0].scrollLeft + arguments[0].clientWidth, arguments[1])",
-                scroll,
-                max_left,
-            )
-            _sync_header_scroll(header, scroll, driver)
-            time.sleep(SCROLL_SETTLE_S)
-
-        if chapter_values:
-            return stats_table_from_maps(date_order, chapter_values)
+        ds_table = _extract_kendo_datasource(driver, grid)
+        dom_table = _extract_via_dom_scroll(driver, grid, locked, scroll, header)
+        if ds_table and dom_table:
+            return ds_table if len(ds_table.rows) >= len(dom_table.rows) else dom_table
+        if ds_table:
+            return ds_table
+        if dom_table:
+            return dom_table
 
     result = StatsTable()
     for cell in grid.find_elements(By.CSS_SELECTOR, "th, td"):
