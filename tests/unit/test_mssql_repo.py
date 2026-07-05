@@ -139,3 +139,31 @@ def test_delete_runs_by_fetched_at_deletes(mock_connect_fn, repo: MssqlReadRepos
     assert result.deleted_reads == 3
     assert delete_cursor.execute.call_count == 2
     delete_conn.commit.assert_called_once()
+
+
+@patch("author_today.storage.mssql_repo.connect")
+def test_get_book_load_info(mock_connect_fn, repo: MssqlReadRepository):
+    list_conn, list_cursor = _mock_connect(
+        fetchall_results=[
+            [
+                (10, 172953, date(2025, 7, 1), date(2025, 7, 31), datetime(2026, 6, 1, 12, 0)),
+            ]
+        ],
+    )
+    list_cursor.description = [
+        ("id",),
+        ("work_id",),
+        ("period_start",),
+        ("period_end",),
+        ("fetched_at",),
+    ]
+    span_conn, span_cursor = _mock_connect(fetchone_results=[(date(2025, 7, 1), date(2025, 7, 31))])
+    mock_connect_fn.return_value.__enter__.side_effect = [list_conn, span_conn]
+
+    info = repo.get_book_load_info(172953)
+
+    assert info.book_id == 172953
+    assert info.read_date_min == date(2025, 7, 1)
+    assert info.read_date_max == date(2025, 7, 31)
+    assert len(info.runs) == 1
+    assert info.runs[0].period_start == date(2025, 7, 1)

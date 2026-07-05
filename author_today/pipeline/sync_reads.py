@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
@@ -19,14 +20,24 @@ from author_today.storage.persist import persist_snapshot, snapshot_from_table
 from config.settings import Settings, ensure_data_dirs
 
 
-def _auth_provider(settings: Settings) -> AuthProvider:
+def _auth_provider(
+    settings: Settings,
+    *,
+    device_code_provider: Callable[[str], str] | None = None,
+    wait_login_seconds: int | None = None,
+) -> AuthProvider:
     if settings.has_auto_login():
         return SeleniumLoginProvider(
             settings.at_email,
             settings.at_password,
             auth_timeout=settings.auth_timeout,
+            code_provider=device_code_provider,
         )
-    return ManualAuthProvider(settings.wait_login_seconds)
+    return ManualAuthProvider(
+        wait_login_seconds
+        if wait_login_seconds is not None
+        else settings.wait_login_seconds
+    )
 
 
 def _load_and_persist_period(
@@ -97,10 +108,16 @@ def sync_reads_by_period(
     output_json: Path | None = None,
     save_raw: bool = True,
     save_mssql: bool = True,
+    device_code_provider: Callable[[str], str] | None = None,
+    wait_login_seconds: int | None = None,
 ) -> StatsTable:
     ensure_data_dirs()
     chunks = split_period_into_months(period_start, period_end)
-    auth = _auth_provider(settings)
+    auth = _auth_provider(
+        settings,
+        device_code_provider=device_code_provider,
+        wait_login_seconds=wait_login_seconds,
+    )
     driver = create_driver(settings)
 
     try:

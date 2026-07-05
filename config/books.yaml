@@ -1,4 +1,6 @@
 # Книги для синхронизации (book_id с author.today, в URL — workId)
 books:
+  - book_id: 172953
+    title: "Рыба без головы. Апокалипсис"
   - book_id: 323389
     title: "Пример книги"

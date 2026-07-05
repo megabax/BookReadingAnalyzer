@@ -31,6 +31,33 @@ class DeleteRunsResult(DeleteRunsPreview):
     deleted_runs: int
 
 
+@dataclass(frozen=True)
+class LoadedRun:
+    run_id: int
+    period_start: date
+    period_end: date
+    fetched_at: datetime
+
+
+@dataclass(frozen=True)
+class BookLoadInfo:
+    book_id: int
+    runs: tuple[LoadedRun, ...]
+    read_date_min: date | None
+    read_date_max: date | None
+
+
+@dataclass(frozen=True)
+class RunDateCoverage:
+    run_id: int
+    book_id: int
+    book_title: str | None
+    period_start: date
+    period_end: date
+    fetched_at: datetime
+    read_dates: frozenset[date]
+
+
 class MssqlReadRepository:
     """Сохранение снимков прочтений в MS SQL Server."""
 
@@ -101,6 +128,136 @@ class MssqlReadRepository:
                 """,
                 limit,
                 book_id,
+            )
+            columns = [col[0] for col in cursor.description]
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def get_book_load_info(self, book_id: int, *, limit: int = 50) -> BookLoadInfo:
+        """Загрузки книги (fetch_runs) и фактический диапазон read_date в chapter_reads."""
+        runs_raw = self.list_runs(book_id, limit=limit)
+        runs: list[LoadedRun] = []
+        for row in runs_raw:
+            fetched_raw = row["fetched_at"]
+            if isinstance(fetched_raw, datetime):
+                fetched_at = fetched_raw
+            else:
+                fetched_at = datetime.fromisoformat(str(fetched_raw).replace("Z", "+00:00"))
+            period_start = row["period_start"]
+            period_end = row["period_end"]
+            if not isinstance(period_start, date):
+                period_start = date.fromisoformat(str(period_start)[:10])
+            if not isinstance(period_end, date):
+                period_end = date.fromisoformat(str(period_end)[:10])
+            runs.append(
+                LoadedRun(
+                    run_id=int(row["id"]),
+                    period_start=period_start,
+                    period_end=period_end,
+                    fetched_at=fetched_at,
+                )
+            )
+
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT MIN(cr.read_date), MAX(cr.read_date)
+                FROM dbo.chapter_reads cr
+                INNER JOIN dbo.fetch_runs fr ON fr.id = cr.run_id
+                WHERE fr.work_id = ?
+                """,
+                book_id,
+            )
+            row = cursor.fetchone()
+            read_min = row[0]
+            read_max = row[1]
+
+        def _as_date(value) -> date | None:
+            if value is None:
+                return None
+            if isinstance(value, date):
+                return value
+            return date.fromisoformat(str(value)[:10])
+
+        return BookLoadInfo(
+            book_id=book_id,
+            runs=tuple(runs),
+            read_date_min=_as_date(read_min),
+            read_date_max=_as_date(read_max),
+        )
+
+    def list_run_date_coverage(self, book_id: int | None = None) -> list[RunDateCoverage]:
+        """Все fetch_runs и множество read_date по каждому run_id."""
+        sql = """
+            SELECT
+                fr.id,
+                fr.work_id,
+                b.title,
+                fr.period_start,
+                fr.period_end,
+                fr.fetched_at,
+                cr.read_date
+            FROM dbo.fetch_runs fr
+            LEFT JOIN dbo.books b ON b.id = fr.work_id
+            LEFT JOIN dbo.chapter_reads cr ON cr.run_id = fr.id
+            WHERE (? IS NULL OR fr.work_id = ?)
+            ORDER BY fr.work_id, fr.fetched_at DESC, fr.id, cr.read_date
+        """
+        params = (book_id, book_id)
+        grouped: dict[int, dict] = {}
+
+        def _as_date(value) -> date:
+            if isinstance(value, date):
+                return value
+            return date.fromisoformat(str(value)[:10])
+
+        def _as_datetime(value) -> datetime:
+            if isinstance(value, datetime):
+                return value
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            for run_id, work_id, title, period_start, period_end, fetched_at, read_date in cursor.fetchall():
+                run_id = int(run_id)
+                entry = grouped.get(run_id)
+                if entry is None:
+                    entry = {
+                        "book_id": int(work_id),
+                        "book_title": str(title) if title is not None else None,
+                        "period_start": _as_date(period_start),
+                        "period_end": _as_date(period_end),
+                        "fetched_at": _as_datetime(fetched_at),
+                        "read_dates": set(),
+                    }
+                    grouped[run_id] = entry
+                if read_date is not None:
+                    entry["read_dates"].add(_as_date(read_date))
+
+        return [
+            RunDateCoverage(
+                run_id=run_id,
+                book_id=entry["book_id"],
+                book_title=entry["book_title"],
+                period_start=entry["period_start"],
+                period_end=entry["period_end"],
+                fetched_at=entry["fetched_at"],
+                read_dates=frozenset(entry["read_dates"]),
+            )
+            for run_id, entry in grouped.items()
+        ]
+
+    def list_books(self) -> list[dict]:
+        """Книги, уже известные БД (dbo.books)."""
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, title
+                FROM dbo.books
+                ORDER BY id
+                """
             )
             columns = [col[0] for col in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
