@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
-from datetime import date
+from dataclasses import dataclass, field
+from datetime import date, timedelta
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -29,19 +29,29 @@ DEFAULT_STATS_URL = (
     "startDate=2025-07-01T20%3A00%3A00.000Z&endDate=2025-07-31T19%3A59%3A59.000Z"
     "&workId=323389&valueType=hit"
 )
-DEFAULT_PERIOD_START = date(2025, 7, 1)
-DEFAULT_PERIOD_END = date(2025, 7, 31)
 DATA_DIR = ROOT_DIR / "data"
 RAW_DIR = DATA_DIR / "raw"
 REPORTS_DIR = DATA_DIR / "reports"
 DB_PATH = DATA_DIR / "db" / "reads.sqlite"
 
 
+def previous_month_period(today: date | None = None) -> tuple[date, date]:
+    """Первый и последний день прошлого месяца."""
+    today = today or date.today()
+    current_month_start = today.replace(day=1)
+    prev_month_end = current_month_start - timedelta(days=1)
+    prev_month_start = prev_month_end.replace(day=1)
+    return prev_month_start, prev_month_end
+
+
+DEFAULT_PERIOD_START, DEFAULT_PERIOD_END = previous_month_period()
+
+
 @dataclass
 class Settings:
     default_stats_url: str = DEFAULT_STATS_URL
-    default_period_start: date = DEFAULT_PERIOD_START
-    default_period_end: date = DEFAULT_PERIOD_END
+    default_period_start: date = field(default_factory=lambda: previous_month_period()[0])
+    default_period_end: date = field(default_factory=lambda: previous_month_period()[1])
     book_id: int = 323389
     value_type: str = "hit"
     chrome_user_data_dir: str | None = None
