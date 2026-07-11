@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import tempfile
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -22,9 +22,10 @@ from author_today.analyze.funnel import (
     default_funnel_csv_path,
     save_funnel_csv,
 )
+from author_today.analyze.funnel_compare import FunnelCompareReport, save_funnel_compare_csv
 from author_today.services.books import BookOption, load_book_catalog, load_book_data_info
 from author_today.services.fetch import fetch_reads_for_period
-from author_today.services.reports import load_funnel_steps
+from author_today.services.reports import load_funnel_compare, load_funnel_steps
 from config.settings import Settings
 
 st.set_page_config(
@@ -48,6 +49,112 @@ def _mssql_cache_key(settings: Settings) -> str:
     if settings.mssql_server and settings.mssql_database:
         return f"{settings.mssql_server}|{settings.mssql_database}"
     return "mssql"
+
+
+def _default_compare_period_b() -> tuple[date, date]:
+    """Месяц перед дефолтным периодом A (два месяца назад от «сегодня»)."""
+    prev_start = settings.default_period_start
+    period_b_end = prev_start - timedelta(days=1)
+    period_b_start = period_b_end.replace(day=1)
+    return period_b_start, period_b_end
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _cached_funnel_compare(
+    _cache_key: str,
+    book_id: int,
+    period_a_start: date,
+    period_a_end: date,
+    period_b_start: date,
+    period_b_end: date,
+    baseline_chapter_order: int,
+    skip_book_page: bool,
+) -> FunnelCompareReport:
+    return load_funnel_compare(
+        settings,
+        book_id,
+        period_a_start,
+        period_a_end,
+        period_b_start,
+        period_b_end,
+        baseline_chapter_order=baseline_chapter_order,
+        skip_book_page=skip_book_page,
+    )
+
+
+def _compare_report_dataframe(report: FunnelCompareReport) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "chapter_order": row.site_chapter_order,
+                "Глава": row.chapter_name,
+                "μ A": row.period_a.mean_pct,
+                "σ A": row.period_a.sigma_pct,
+                "n A": row.period_a.n_days,
+                "μ B": row.period_b.mean_pct,
+                "σ B": row.period_b.sigma_pct,
+                "n B": row.period_b.n_days,
+                "Δμ B−A": row.mean_diff,
+                "p-value": row.p_value,
+                "p<0.05": row.p_value is not None and row.p_value < 0.05,
+            }
+            for row in report.rows
+        ]
+    )
+
+
+def _compare_csv_bytes(report: FunnelCompareReport) -> bytes:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        path = Path(tmp_dir) / "funnel_compare.csv"
+        save_funnel_compare_csv(report, path)
+        return path.read_bytes()
+
+
+def _compare_csv_filename(report: FunnelCompareReport) -> str:
+    return (
+        f"funnel_compare_{report.book_id}_"
+        f"{report.period_a_start:%Y%m%d}_{report.period_a_end:%Y%m%d}_vs_"
+        f"{report.period_b_start:%Y%m%d}_{report.period_b_end:%Y%m%d}.csv"
+    )
+
+
+def _render_compare_chart(report: FunnelCompareReport) -> None:
+    rows: list[dict] = []
+    for row in report.rows:
+        rows.append(
+            {
+                "order": row.site_chapter_order,
+                "chapter": row.chapter_name,
+                "period": "A",
+                "mean_pct": float(row.period_a.mean_pct),
+            }
+        )
+        rows.append(
+            {
+                "order": row.site_chapter_order,
+                "chapter": row.chapter_name,
+                "period": "B",
+                "mean_pct": float(row.period_b.mean_pct),
+            }
+        )
+    chart_df = pd.DataFrame(rows)
+    chart = (
+        alt.Chart(chart_df)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("order:Q", title="chapter_order"),
+            y=alt.Y("mean_pct:Q", title="μ, % от базы", scale=alt.Scale(zero=False)),
+            color=alt.Color("period:N", title="Период"),
+            tooltip=[
+                alt.Tooltip("order:Q", title="chapter_order"),
+                alt.Tooltip("chapter:N", title="Глава"),
+                alt.Tooltip("period:N", title="Период"),
+                alt.Tooltip("mean_pct:Q", title="μ, %", format=".2f"),
+            ],
+        )
+        .properties(height=420)
+    )
+    st.altair_chart(chart, use_container_width=True)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -293,7 +400,8 @@ with tab_funnel:
         build_funnel = st.button("Построить воронку", type="primary", key="funnel_build")
         if st.button("Сбросить кэш отчёта", key="funnel_clear_cache"):
             _cached_funnel_steps.clear()
-            st.toast("Кэш воронки очищен")
+            _cached_funnel_compare.clear()
+            st.toast("Кэш отчётов очищен")
 
         if build_funnel:
             if funnel_start > funnel_end:
@@ -391,9 +499,155 @@ with tab_funnel:
 
 with tab_compare:
     st.subheader("Сравнение двух периодов")
-    st.markdown(
-        "Экран подключит `load_funnel_compare` (μ, σ, p-value по главам)."
+    st.caption(
+        "По каждому дню: % главы от базовой. По периоду — среднее μ и σ по дням; "
+        "p-value — Welch t-test (двусторонний)."
     )
+
+    if not settings.has_mssql():
+        st.warning("Настройте MS SQL в `.env` — отчёт строится из `chapter_reads`.")
+    else:
+        compare_catalog = load_book_catalog(settings)
+        compare_book_id = pick_book_id(compare_catalog, settings, key_prefix="compare")
+
+        default_b_start, default_b_end = _default_compare_period_b()
+        st.markdown("**Период A**")
+        col_a1, col_a2 = st.columns(2)
+        with col_a1:
+            compare_a_start = st.date_input(
+                "A: начало",
+                value=settings.default_period_start,
+                key="compare_a_start",
+            )
+        with col_a2:
+            compare_a_end = st.date_input(
+                "A: конец",
+                value=settings.default_period_end,
+                key="compare_a_end",
+            )
+
+        st.markdown("**Период B**")
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            compare_b_start = st.date_input(
+                "B: начало",
+                value=default_b_start,
+                key="compare_b_start",
+            )
+        with col_b2:
+            compare_b_end = st.date_input(
+                "B: конец",
+                value=default_b_end,
+                key="compare_b_end",
+            )
+
+        with st.expander("Параметры сравнения", expanded=False):
+            compare_skip_book_page = st.checkbox(
+                "Исключить «Страница книги»",
+                value=True,
+                key="compare_skip_book_page",
+            )
+            compare_base_order = int(
+                st.number_input(
+                    "chapter_order базовой главы (100% для дневных долей)",
+                    min_value=1,
+                    value=2,
+                    step=1,
+                    key="compare_base_order",
+                    help="Аналог --base-order в scripts/report_funnel_compare.py",
+                )
+            )
+
+        build_compare = st.button("Сравнить периоды", type="primary", key="compare_build")
+        if st.button("Сбросить кэш сравнения", key="compare_clear_cache"):
+            _cached_funnel_compare.clear()
+            st.toast("Кэш сравнения очищен")
+
+        if build_compare:
+            if compare_a_start > compare_a_end:
+                st.error("Период A: начало не может быть позже конца.")
+            elif compare_b_start > compare_b_end:
+                st.error("Период B: начало не может быть позже конца.")
+            else:
+                try:
+                    with st.spinner("Загрузка данных из MS SQL…"):
+                        report = _cached_funnel_compare(
+                            _mssql_cache_key(settings),
+                            compare_book_id,
+                            compare_a_start,
+                            compare_a_end,
+                            compare_b_start,
+                            compare_b_end,
+                            compare_base_order,
+                            compare_skip_book_page,
+                        )
+                except ValueError as exc:
+                    st.error(str(exc))
+                except Exception as exc:
+                    st.error(f"Ошибка сравнения: {exc}")
+                else:
+                    if not report.rows:
+                        st.warning(
+                            "Нет данных для сравнения. "
+                            "Загрузите оба периода на вкладке «Загрузка»."
+                        )
+                    else:
+                        sig_count = sum(
+                            1
+                            for row in report.rows
+                            if row.p_value is not None and row.p_value < 0.05
+                        )
+                        st.success(
+                            f"book_id={compare_book_id} · база: гл.{report.baseline_chapter_order} · "
+                            f"A: {report.period_a_start} — {report.period_a_end} · "
+                            f"B: {report.period_b_start} — {report.period_b_end}"
+                        )
+                        m1, m2, m3 = st.columns(3)
+                        m1.metric("Глав в сравнении", len(report.rows))
+                        m2.metric("Значимых (p<0.05)", sig_count)
+                        m3.metric("База chapter_order", report.baseline_chapter_order)
+
+                        st.markdown("**μ (% от базы) по главам: период A vs B**")
+                        _render_compare_chart(report)
+
+                        table_df = _compare_report_dataframe(report)
+                        st.dataframe(
+                            table_df.drop(columns=["p<0.05"]),
+                            hide_index=True,
+                            width="stretch",
+                            column_config={
+                                "μ A": st.column_config.NumberColumn(format="%.2f"),
+                                "σ A": st.column_config.NumberColumn(format="%.2f"),
+                                "μ B": st.column_config.NumberColumn(format="%.2f"),
+                                "σ B": st.column_config.NumberColumn(format="%.2f"),
+                                "Δμ B−A": st.column_config.NumberColumn(format="%.2f"),
+                                "p-value": st.column_config.NumberColumn(format="%.4f"),
+                            },
+                        )
+
+                        if sig_count:
+                            sig_names = [
+                                row.chapter_name
+                                for row in report.rows
+                                if row.p_value is not None and row.p_value < 0.05
+                            ]
+                            st.info(
+                                f"Статистически значимые главы (p<0.05): {len(sig_names)}. "
+                                "См. таблицу и CSV."
+                            )
+
+                        st.download_button(
+                            "Скачать CSV",
+                            data=_compare_csv_bytes(report),
+                            file_name=_compare_csv_filename(report),
+                            mime="text/csv",
+                            key="compare_download_csv",
+                        )
+
+                        st.caption(
+                            "Для каждого дня: % = просмотры_главы / просмотры_базы × 100. "
+                            "σ — несмещённое s по дням. Дни с нулевой базой пропускаются."
+                        )
 
 with tab_fetch:
     st.subheader("Загрузка с author.today")
