@@ -27,7 +27,7 @@
 - [x] Добавлен `ReadSnapshot.from_json(path)`
 - [x] `funnel_from_json` / `daily_matrix_from_json` используют snapshot
 - [x] Исправлен cross-year в `from_stats_table` + тест green
-- [ ] Ручной smoke: воронка и compare из MSSQL согласованы с доменной моделью
+- [x] Ручной smoke: воронка и compare из MSSQL согласованы с доменной моделью
 
 **Критерий выхода:** загрузка снимка из MSSQL в `ReadSnapshot`; cross-year тест green.
 
