@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -99,6 +100,34 @@ def sync_reads(
         driver.quit()
 
 
+def _warn_multimonth_single_file_export(
+    period_start: date,
+    period_end: date,
+    *,
+    output_csv: Path | None,
+    output_json: Path | None,
+) -> None:
+    """Предупреждение: -o/--json на период >1 месяца содержат только последний chunk."""
+    if not needs_monthly_chunks(period_start, period_end):
+        return
+    if not output_csv and not output_json:
+        return
+
+    targets: list[str] = []
+    if output_csv:
+        targets.append("-o / --output (CSV)")
+    if output_json:
+        targets.append("--json")
+    export_desc = " и ".join(targets)
+    print(
+        f"Предупреждение: период {period_start} — {period_end} загружен по месяцам. "
+        f"В {export_desc} попадёт только последний месяц. "
+        "MS SQL и автосохранение в data/raw (без явного --json) сохраняют все порции. "
+        "Для отчётов используйте MSSQL.",
+        file=sys.stderr,
+    )
+
+
 def sync_reads_by_period(
     settings: Settings,
     period_start: date,
@@ -150,6 +179,12 @@ def sync_reads_by_period(
             if table is None:
                 raise RuntimeError("Не удалось загрузить данные за период.")
 
+        _warn_multimonth_single_file_export(
+            period_start,
+            period_end,
+            output_csv=output_csv,
+            output_json=output_json,
+        )
         if output_csv:
             save_csv(table, output_csv)
         if output_json:
