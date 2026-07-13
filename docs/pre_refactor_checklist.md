@@ -38,7 +38,7 @@
 - [x] Прочитан ADR-003
 - [x] Методы repo реализованы и покрыты (unit mock)
 - [x] `funnel.py`, `funnel_compare.py`, `delete_runs.py` без прямого SQL
-- [ ] `delete_runs.py --dry-run` на реальной БД — те же счётчики, что до переноса
+- [x] `delete_runs.py --dry-run` на реальной БД — те же счётчики, что до переноса
 
 **Критерий выхода:** grep по `SELECT` в `analyze/` и `delete_runs.py` — пусто.
 
@@ -77,7 +77,7 @@
 - [x] `requirements-ui.txt`, `streamlit_app.py`, `.streamlit/config.toml`
 - [x] `author_today/services/reports.py`
 - [x] `docs/ui_streamlit.md`, ADR-011, §18 в refactoring_plan
-- [ ] Этап A: воронка и compare в UI (после §2–§3)
+- [x] Этап A: воронка и compare в UI (после §2–§3)
 - [ ] Этап C: загрузка Selenium из UI
 
 ---

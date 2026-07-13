@@ -16,6 +16,7 @@ ChapterViewsRow = tuple[int, str, int]
 DailyChapterMatrix = dict[date, dict[int, tuple[str, int]]]
 
 _RUNS_FETCHED_AT_FILTER = "fr.work_id = ? AND fr.fetched_at >= ? AND fr.fetched_at <= ?"
+_RUNS_PERIOD_FILTER = "fr.work_id = ? AND fr.period_start = ? AND fr.period_end = ?"
 
 
 @dataclass(frozen=True)
@@ -335,19 +336,12 @@ class MssqlReadRepository:
         """Дневная матрица просмотров: дата → chapter_order → (имя, views)."""
         return self.load_snapshot(book_id, period_start, period_end).daily_matrix()
 
-    def preview_delete_runs_by_fetched_at(
-        self,
-        book_id: int,
-        fetched_from: datetime,
-        fetched_to: datetime,
-    ) -> DeleteRunsPreview:
-        """Сколько run'ов и строк chapter_reads попадут под фильтр fetched_at."""
-        params = (book_id, fetched_from, fetched_to)
-        runs_sql = f"SELECT fr.id FROM dbo.fetch_runs fr WHERE {_RUNS_FETCHED_AT_FILTER} ORDER BY fr.id"
+    def _preview_delete_runs(self, runs_filter: str, params: tuple) -> DeleteRunsPreview:
+        runs_sql = f"SELECT fr.id FROM dbo.fetch_runs fr WHERE {runs_filter} ORDER BY fr.id"
         reads_sql = (
             "SELECT COUNT(*) "
             "FROM dbo.chapter_reads cr "
-            f"WHERE cr.run_id IN (SELECT fr.id FROM dbo.fetch_runs fr WHERE {_RUNS_FETCHED_AT_FILTER})"
+            f"WHERE cr.run_id IN (SELECT fr.id FROM dbo.fetch_runs fr WHERE {runs_filter})"
         )
         with connect(self.settings) as conn:
             cursor = conn.cursor()
@@ -361,14 +355,7 @@ class MssqlReadRepository:
             reads_count=reads_count,
         )
 
-    def delete_runs_by_fetched_at(
-        self,
-        book_id: int,
-        fetched_from: datetime,
-        fetched_to: datetime,
-    ) -> DeleteRunsResult:
-        """Удалить chapter_reads и fetch_runs по book_id и диапазону fetched_at."""
-        preview = self.preview_delete_runs_by_fetched_at(book_id, fetched_from, fetched_to)
+    def _delete_runs(self, runs_filter: str, params: tuple, preview: DeleteRunsPreview) -> DeleteRunsResult:
         if preview.runs_count == 0:
             return DeleteRunsResult(
                 run_ids=preview.run_ids,
@@ -378,13 +365,12 @@ class MssqlReadRepository:
                 deleted_runs=0,
             )
 
-        params = (book_id, fetched_from, fetched_to)
         delete_reads_sql = (
             "DELETE cr "
             "FROM dbo.chapter_reads cr "
-            f"WHERE cr.run_id IN (SELECT fr.id FROM dbo.fetch_runs fr WHERE {_RUNS_FETCHED_AT_FILTER})"
+            f"WHERE cr.run_id IN (SELECT fr.id FROM dbo.fetch_runs fr WHERE {runs_filter})"
         )
-        delete_runs_sql = f"DELETE fr FROM dbo.fetch_runs fr WHERE {_RUNS_FETCHED_AT_FILTER}"
+        delete_runs_sql = f"DELETE fr FROM dbo.fetch_runs fr WHERE {runs_filter}"
 
         with connect(self.settings) as conn:
             cursor = conn.cursor()
@@ -401,6 +387,48 @@ class MssqlReadRepository:
             deleted_reads=deleted_reads,
             deleted_runs=deleted_runs,
         )
+
+    def preview_delete_runs_by_fetched_at(
+        self,
+        book_id: int,
+        fetched_from: datetime,
+        fetched_to: datetime,
+    ) -> DeleteRunsPreview:
+        """Сколько run'ов и строк chapter_reads попадут под фильтр fetched_at."""
+        params = (book_id, fetched_from, fetched_to)
+        return self._preview_delete_runs(_RUNS_FETCHED_AT_FILTER, params)
+
+    def preview_delete_runs_by_period(
+        self,
+        book_id: int,
+        period_start: date,
+        period_end: date,
+    ) -> DeleteRunsPreview:
+        """Сколько run'ов и строк chapter_reads попадут под фильтр period_start/period_end."""
+        params = (book_id, period_start, period_end)
+        return self._preview_delete_runs(_RUNS_PERIOD_FILTER, params)
+
+    def delete_runs_by_fetched_at(
+        self,
+        book_id: int,
+        fetched_from: datetime,
+        fetched_to: datetime,
+    ) -> DeleteRunsResult:
+        """Удалить chapter_reads и fetch_runs по book_id и диапазону fetched_at."""
+        params = (book_id, fetched_from, fetched_to)
+        preview = self.preview_delete_runs_by_fetched_at(book_id, fetched_from, fetched_to)
+        return self._delete_runs(_RUNS_FETCHED_AT_FILTER, params, preview)
+
+    def delete_runs_by_period(
+        self,
+        book_id: int,
+        period_start: date,
+        period_end: date,
+    ) -> DeleteRunsResult:
+        """Удалить chapter_reads и fetch_runs по book_id и заявленному периоду загрузки."""
+        params = (book_id, period_start, period_end)
+        preview = self.preview_delete_runs_by_period(book_id, period_start, period_end)
+        return self._delete_runs(_RUNS_PERIOD_FILTER, params, preview)
 
     @staticmethod
     def _chapter_rows(snapshot: ReadSnapshot) -> list[tuple]:

@@ -87,6 +87,45 @@ def test_daily_chapter_matrix(mock_connect_fn, repo: MssqlReadRepository):
 
 
 @patch("author_today.storage.mssql_repo.connect")
+def test_preview_delete_runs_by_period(mock_connect_fn, repo: MssqlReadRepository):
+    conn, cursor = _mock_connect(
+        fetchall_results=[[(20,), (21,)]],
+        fetchone_results=[(100,)],
+    )
+    mock_connect_fn.return_value.__enter__.return_value = conn
+
+    preview = repo.preview_delete_runs_by_period(
+        172953,
+        date(2026, 6, 1),
+        date(2026, 6, 30),
+    )
+
+    assert preview.run_ids == (20, 21)
+    assert preview.runs_count == 2
+    assert preview.reads_count == 100
+    assert cursor.execute.call_count == 2
+
+
+@patch("author_today.storage.mssql_repo.connect")
+def test_delete_runs_by_period_deletes(mock_connect_fn, repo: MssqlReadRepository):
+    preview_conn, preview_cursor = _mock_connect(fetchall_results=[[(9,)]], fetchone_results=[(5,)])
+    delete_conn, delete_cursor = _mock_connect()
+    delete_cursor.rowcount = 5
+    mock_connect_fn.return_value.__enter__.side_effect = [preview_conn, delete_conn]
+
+    result = repo.delete_runs_by_period(
+        172953,
+        date(2026, 6, 1),
+        date(2026, 6, 30),
+    )
+
+    assert result.runs_count == 1
+    assert result.deleted_reads == 5
+    assert delete_cursor.execute.call_count == 2
+    delete_conn.commit.assert_called_once()
+
+
+@patch("author_today.storage.mssql_repo.connect")
 def test_preview_delete_runs_by_fetched_at(mock_connect_fn, repo: MssqlReadRepository):
     conn, cursor = _mock_connect(
         fetchall_results=[[(10,), (11,)]],
