@@ -2,8 +2,7 @@
 """
 Точка входа веб-интерфейса AutorToday.
 
-Запуск из корня проекта:
-    pip install -r requirements.txt -r requirements-ui.txt
+Запуск из корня проекта (после `pip install -e ".[ui]"`):
     streamlit run streamlit_app.py
 """
 

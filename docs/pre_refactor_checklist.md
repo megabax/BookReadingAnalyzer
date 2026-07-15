@@ -55,10 +55,10 @@
 
 ## Фаза 4: cli_common / pyproject.toml
 
-- [ ] Прочитан ADR-008
-- [ ] `pip install -e .` работает без `sys.path` hack (хотя бы в новых скриптах)
+- [x] Прочитан ADR-008
+- [x] `pip install -e .` работает без `sys.path` hack (`pyproject.toml`, скрипты очищены)
 - [ ] Общие argparse-helpers для funnel-скриптов
-- [ ] `--help` всех entry points без ошибок
+- [x] `--help` всех entry points без ошибок (после editable-установки)
 
 ---
 

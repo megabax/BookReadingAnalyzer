@@ -85,7 +85,7 @@ MS SQL A/B ► load_snapshot() ──► daily_matrix() ──► compare_funnel
 | `python scripts/report_funnel_compare.py` | сравнение периодов |
 | `python scripts/delete_runs.py` | удаление из БД |
 
-Все `scripts/*` (кроме тонких обёрток) дублируют `sys.path.insert(ROOT)`.
+Раньше `scripts/*` дублировали `sys.path.insert(ROOT)`; с `pyproject.toml` пакет ставится через `pip install -e .`.
 
 ## Зависимости
 

@@ -29,7 +29,7 @@
 ```bat
 cd D:\Pythons\AutorToday
 venv\Scripts\activate.bat
-pip install -r requirements.txt -r requirements-ui.txt
+pip install -e ".[ui]"
 streamlit run streamlit_app.py
 ```
 

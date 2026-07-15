@@ -82,7 +82,7 @@
 | `books.yaml` не читается | config/ |
 | `ReadRepository` не используется единообразно | storage/ |
 | `scripts/report.py` — placeholder | scripts/ |
-| Нет unit-тестов | весь проект |
+| Unit-тесты есть (`pytest`); editable-install через `pyproject.toml` | — |
 
 ---
 

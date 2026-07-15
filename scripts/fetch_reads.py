@@ -1,12 +1,10 @@
 #!/usr/bin/env python
-"""Загрузка таблицы прочтений. Запуск из корня проекта: python scripts/fetch_reads.py"""
+"""Загрузка таблицы прочтений. Запуск: python scripts/fetch_reads.py
+
+Требуется editable-установка: pip install -e .
+"""
 
 import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from author_today.cli import main
 from author_today.cli_reminders import run_with_manual_smoke_reminder

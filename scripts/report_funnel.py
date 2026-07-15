@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-"""Воронка прочтений по главам. Запуск: python scripts/report_funnel.py"""
+"""Воронка прочтений по главам. Запуск: python scripts/report_funnel.py
+
+Требуется editable-установка: pip install -e .
+"""
 
 from __future__ import annotations
 
@@ -8,10 +11,6 @@ import json
 import sys
 from datetime import date
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from author_today.analyze.funnel import (
     default_funnel_csv_path,

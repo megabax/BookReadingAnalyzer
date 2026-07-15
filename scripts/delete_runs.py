@@ -1,17 +1,14 @@
 #!/usr/bin/env python
-"""Удаление загрузок из MS SQL по book_id и fetched_at или period_start/period_end."""
+"""Удаление загрузок из MS SQL по book_id и fetched_at или period_start/period_end.
+
+Требуется editable-установка: pip install -e .
+"""
 
 from __future__ import annotations
 
 import argparse
 import sys
 from datetime import date, datetime
-
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from author_today.storage.mssql_repo import create_mssql_repository
 from config.settings import Settings

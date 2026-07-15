@@ -1,12 +1,10 @@
 #!/usr/bin/env python
-"""Создание таблиц в MS SQL. Запуск: python scripts/init_mssql.py"""
+"""Создание таблиц в MS SQL. Запуск: python scripts/init_mssql.py
+
+Требуется editable-установка: pip install -e .
+"""
 
 import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from author_today.storage.mssql_repo import create_mssql_repository
 from config.settings import Settings

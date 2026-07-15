@@ -93,15 +93,9 @@ mssql_repo.load_snapshot(...) ──► ReadSnapshot ──► funnel / compare
 
 ## Средний приоритет
 
-### 7. Общий CLI и bootstrap скриптов
+### 7. Общий CLI и bootstrap скриптов 🚧 частично (2026-07)
 
-Шесть скриптов в `scripts/` повторяют:
-
-```python
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-```
+**Сделано:** `pyproject.toml` + `pip install -e .`; хак `sys.path.insert` убран из `scripts/`.
 
 Дублируются аргументы между `report_funnel.py` и `report_funnel_compare.py`:
 
@@ -109,7 +103,7 @@ if str(ROOT) not in sys.path:
 - `Settings.from_env()` + MS SQL (JSON legacy за `AT_ENABLE_LEGACY_JSON`)
 - `except ValueError` → stderr → exit 1
 
-**Рекомендация:**
+**Осталось:**
 
 - `author_today/cli_common.py` с `add_book_period_args()`, `add_funnel_args()`, `resolve_book_id()`
 - или подкоманды в `author_today/cli.py`:
@@ -119,8 +113,6 @@ if str(ROOT) not in sys.path:
   python -m author_today funnel-compare ...
   python -m author_today delete-runs ...
   ```
-
-- `pyproject.toml` + `pip install -e .` — убрать хак с `sys.path`
 
 ---
 
@@ -285,7 +277,7 @@ flowchart TD
 2. **MSSQL → ReadSnapshot** — ✅ сделано (п. 3)
 3. **SQL в storage** — ✅ сделано (п. 2)
 4. **Именование** — ✅ сделано (п. 1)
-5. **CLI / services** — `author_today/services/` начат под Streamlit
+5. **CLI / services** — `pip install -e .` ✅; `cli_common` ещё нет; `services/` под Streamlit ✅
 6. **Заглушки и README** — по мере сил
 7. **Streamlit** — каркас ✅; отчёты в UI — этап A (§2–§3 готовы)
 
