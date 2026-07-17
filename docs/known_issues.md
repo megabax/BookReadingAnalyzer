@@ -66,6 +66,7 @@
 ### Нулевая дисперсия
 
 Если дневные % константны в обоих периодах, p-value = 1 (одинаково) или 0 (разные средние).
+`scipy.ttest_ind` в этом случае даёт NaN — `hypothesis_tests.welch_ttest_pvalue` уходит в fallback.
 
 ### scipy не в requirements.txt
 

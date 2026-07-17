@@ -43,25 +43,25 @@ def welch_ttest_pvalue(a: Sequence[float], b: Sequence[float]) -> float | None:
     if na < 2 or nb < 2:
         return None
 
+    ma, mb = _mean(a), _mean(b)
+    va = _sample_var(a)
+    vb = _sample_var(b)
+
+    # Нулевая дисперсия: scipy даёт NaN/warning — решаем детерминированно.
+    if va <= 0 and vb <= 0:
+        return 1.0 if abs(ma - mb) < 1e-9 else 0.0
+    if va <= 0 or vb <= 0:
+        return 1.0 if abs(ma - mb) < 1e-9 else 0.0
+
     try:
         from scipy.stats import ttest_ind
 
         _, p = ttest_ind(a, b, equal_var=False)
         p_f = float(p)
-        if math.isnan(p_f):
-            return None
-        return min(1.0, max(0.0, p_f))
+        if not math.isnan(p_f):
+            return min(1.0, max(0.0, p_f))
     except ImportError:
         pass
-
-    ma, mb = _mean(a), _mean(b)
-    va = _sample_var(a)
-    vb = _sample_var(b)
-
-    if va <= 0 and vb <= 0:
-        return 1.0 if abs(ma - mb) < 1e-9 else 0.0
-    if va <= 0 or vb <= 0:
-        return 1.0 if abs(ma - mb) < 1e-9 else 0.0
 
     se2 = va / na + vb / nb
     if se2 <= 0:
