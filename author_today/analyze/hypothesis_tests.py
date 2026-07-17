@@ -1,4 +1,7 @@
-"""Статистические тесты (Welch t-test, p-value)."""
+"""Статистические тесты (Welch t-test, p-value).
+
+Раньше модуль назывался stats_test.py (ADR-006).
+"""
 
 from __future__ import annotations
 

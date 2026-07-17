@@ -64,10 +64,10 @@
 
 ## Фаза 5: Дедуп analyze + cleanup
 
-- [ ] `chapter_filters`, `formatting`, `snapshot_loaders` выделены
-- [ ] `stats_test.py` переименован (ADR-006), импорты обновлены
+- [x] `chapter_filters`, `formatting` выделены (`snapshot_loaders` — опционально позже)
+- [x] `stats_test.py` → `hypothesis_tests.py` (ADR-006), импорты обновлены
 - [ ] Решение по stubs: report.py, sqlite, sales (удалить или оставить с пометкой)
-- [ ] `REPORTS_DIR` в settings
+- [ ] `REPORTS_DIR` в settings (константа уже есть; подключить в скриптах)
 - [ ] README «Структура» обновлена
 
 ---

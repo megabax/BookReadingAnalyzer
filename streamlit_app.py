@@ -16,6 +16,7 @@ import pandas as pd
 import streamlit as st
 import altair as alt
 
+from author_today.analyze.formatting import pct_column_label
 from author_today.analyze.funnel import (
     FunnelStep,
     default_funnel_csv_path,
@@ -175,18 +176,12 @@ def _cached_funnel_steps(
     )
 
 
-def _funnel_pct_column_label(baseline_chapter_order: int | None) -> str:
-    if baseline_chapter_order is None:
-        return "% от 1-й"
-    return f"% от гл.{baseline_chapter_order}"
-
-
 def _funnel_steps_dataframe(
     steps: list[FunnelStep],
     *,
     baseline_chapter_order: int | None,
 ) -> pd.DataFrame:
-    pct_col = _funnel_pct_column_label(baseline_chapter_order)
+    pct_col = pct_column_label(baseline_chapter_order)
     return pd.DataFrame(
         [
             {
@@ -427,7 +422,7 @@ with tab_funnel:
                             "Загрузите статистику на вкладке «Загрузка»."
                         )
                     else:
-                        pct_col = _funnel_pct_column_label(baseline_chapter_order)
+                        pct_col = pct_column_label(baseline_chapter_order)
                         baseline_step = (
                             next(
                                 (

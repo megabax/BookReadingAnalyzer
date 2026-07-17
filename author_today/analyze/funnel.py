@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from author_today.analyze.chapter_filters import filter_chapter_rows
+from author_today.analyze.formatting import fmt_decimal_ru, pct, pct_column_label
 from author_today.domain.models import ReadSnapshot
 from author_today.storage.mssql_repo import create_mssql_repository
 from config.settings import Settings
@@ -21,18 +23,6 @@ class FunnelStep:
     pct_of_first: float
     pct_of_previous: float | None
     drop_from_previous: int | None
-
-
-def _pct(part: int, whole: int) -> float:
-    if whole <= 0:
-        return 0.0
-    return round(100.0 * part / whole, 1)
-
-
-def _pct_column_label(baseline_chapter_order: int | None) -> str:
-    if baseline_chapter_order is None:
-        return "% от 1-й"
-    return f"% от гл.{baseline_chapter_order}"
 
 
 def default_funnel_csv_path(
@@ -57,11 +47,7 @@ def build_funnel(
     rows должны быть отсортированы по chapter_order.
     baseline_chapter_order — с какой главы (по порядку на сайте) считать 100%% для «% от 1-й».
     """
-    filtered: list[tuple[int, str, int]] = []
-    for order, name, views in sorted(rows, key=lambda r: r[0]):
-        if skip_book_page and name.strip().lower() == "страница книги":
-            continue
-        filtered.append((order, name, views))
+    filtered = filter_chapter_rows(rows, skip_book_page=skip_book_page)
 
     if not filtered:
         return []
@@ -84,7 +70,7 @@ def build_funnel(
     prev_views: int | None = None
 
     for step_num, (site_order, name, views) in enumerate(filtered, start=1):
-        pct_prev = _pct(views, prev_views) if prev_views is not None else None
+        pct_prev = pct(views, prev_views) if prev_views is not None else None
         drop = (prev_views - views) if prev_views is not None else None
         steps.append(
             FunnelStep(
@@ -92,7 +78,7 @@ def build_funnel(
                 site_chapter_order=site_order,
                 chapter_name=name,
                 total_views=views,
-                pct_of_first=_pct(views, first_views),
+                pct_of_first=pct(views, first_views),
                 pct_of_previous=pct_prev,
                 drop_from_previous=drop,
             )
@@ -168,7 +154,7 @@ def print_funnel(
         print("Нет данных для воронки.")
         return
 
-    pct_col = _pct_column_label(baseline_chapter_order)
+    pct_col = pct_column_label(baseline_chapter_order)
     header = (
         f"{'#':>4}  {'Глава':<28}  {'Просмотры':>10}  "
         f"{pct_col:>12}  {'% от пред.':>11}  {'Падение':>8}"
@@ -215,11 +201,6 @@ def print_funnel(
     )
 
 
-def _fmt_decimal(value: float, places: int = 1) -> str:
-    """Дробная часть через запятую (для Excel в ru-RU)."""
-    return f"{value:.{places}f}".replace(".", ",")
-
-
 def save_funnel_csv(
     steps: list[FunnelStep],
     path: Path,
@@ -228,7 +209,7 @@ def save_funnel_csv(
 ) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    pct_col = _pct_column_label(baseline_chapter_order)
+    pct_col = pct_column_label(baseline_chapter_order)
     with path.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.writer(f, delimiter=";")
         writer.writerow(
@@ -244,7 +225,7 @@ def save_funnel_csv(
         )
         for step in steps:
             pct_prev = (
-                _fmt_decimal(step.pct_of_previous)
+                fmt_decimal_ru(step.pct_of_previous)
                 if step.pct_of_previous is not None
                 else ""
             )
@@ -254,7 +235,7 @@ def save_funnel_csv(
                     step.site_chapter_order,
                     step.chapter_name,
                     step.total_views,
-                    _fmt_decimal(step.pct_of_first),
+                    fmt_decimal_ru(step.pct_of_first),
                     pct_prev,
                     step.drop_from_previous if step.drop_from_previous is not None else "",
                 ]

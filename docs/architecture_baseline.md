@@ -24,7 +24,7 @@ selenium_stats.py / scripts/*
  browser/           kendo_grid   export, persist, mssql_repo
         │
         ▼
-   analyze/                     ← funnel, funnel_compare, stats_test
+   analyze/                     ← funnel, funnel_compare, hypothesis_tests, formatting
         │
         ▼
    domain/models.py             ← StatsTable, ReadSnapshot
@@ -53,7 +53,7 @@ MS SQL ─────► mssql_repo.load_snapshot() ──► ReadSnapshot ─�
 
 ```
 MS SQL A/B ► load_snapshot() ──► daily_matrix() ──► compare_funnel_periods() ──► print / CSV
-         └──► stats_test.welch_ttest_pvalue() по каждой главе
+         └──► hypothesis_tests.welch_ttest_pvalue() по каждой главе
 ```
 
 **Legacy (скрыто):** `funnel_from_json` / `daily_matrix_from_json` — разные парсеры, только для тестов и отладки (см. `known_issues.md`, ADR-012).
@@ -90,7 +90,7 @@ MS SQL A/B ► load_snapshot() ──► daily_matrix() ──► compare_funnel
 ## Зависимости
 
 - Selenium 4, pandas, pyodbc, requests/bs4 (legacy)
-- scipy — **опционально** (только для p-value, fallback в `stats_test.py`)
+- scipy — **опционально** (только для p-value, fallback в `hypothesis_tests.py`)
 
 ## Что не входит в основной пакет
 

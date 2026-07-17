@@ -62,19 +62,9 @@ mssql_repo.load_snapshot(...) ──► ReadSnapshot ──► funnel / compare
 
 ---
 
-### 4. Автотесты (сейчас отсутствуют)
+### 4. Автотесты ✅
 
-- В проекте нет `test_*.py`, pytest, unittest
-- `author_today/analyze/stats_test.py` — **продакшен-код** (Welch t-test), не тестовый модуль; имя вводит в заблуждение
-
-**Приоритетные цели для тестов:**
-
-- `build_funnel()`, `compare_funnel_periods()` — чистая логика
-- `mean_and_sigma()`, `welch_ttest_pvalue()` — оба пути (scipy и fallback)
-- `split_period_into_months()` в `author_today/fetch/periods.py`
-- `ReadSnapshot.from_stats_table()` — парсинг дат
-- golden-file: JSON → funnel CSV
-
+pytest + фикстуры; `stats_test.py` переименован в `hypothesis_tests.py` (ADR-006).
 ---
 
 ### 5. Баг: даты через границу года ✅
@@ -105,26 +95,16 @@ mssql_repo.load_snapshot(...) ──► ReadSnapshot ──► funnel / compare
 
 ---
 
-### 8. Дедупликация модуля `analyze/`
+### 8. Дедупликация модуля `analyze/` ✅ (2026-07)
 
-| Общее | `funnel.py` | `funnel_compare.py` |
-|-------|-------------|---------------------|
-| Фильтр «Страница книги» | inline | `_is_book_page()` |
-| Расчёт % | `_pct()` | inline |
-| CSV decimal | `_fmt_decimal(places=1)` | `_fmt_decimal(places=2)` |
-| MSSQL | `funnel_from_mssql` | `daily_matrix_from_mssql` |
-| JSON (legacy) | `funnel_from_json` | `daily_matrix_from_json` |
+**Сделано:**
+- `author_today/analyze/chapter_filters.py` — `is_book_page()`, `filter_chapter_rows()`
+- `author_today/analyze/formatting.py` — `pct()`, `pct_column_label()`, `fmt_decimal_ru()`, `fmt_pvalue()`
+- `stats_test.py` → `hypothesis_tests.py` (ADR-006)
 
-**Рекомендация:** выделить:
+`funnel.py` и `funnel_compare.py` используют общие модули.
 
-- `author_today/analyze/chapter_filters.py` — `is_book_page()`, `filter_chapters()`
-- `author_today/analyze/formatting.py` — `fmt_decimal_ru()`, `pct()`
-- `author_today/analyze/snapshot_loaders.py` — JSON/MSSQL → `ReadSnapshot` / `DailyMatrix`
-
-`funnel.py` и `funnel_compare.py` оставить тонкими оркестраторами.
-
-Переименовать `stats_test.py` → `stats.py` или `hypothesis_tests.py`.
-
+**Опционально позже:** `snapshot_loaders.py` (JSON/MSSQL → snapshot уже тонкие обёртки).
 ---
 
 ### 9. `ReadRepository` — использовать или убрать
@@ -287,7 +267,7 @@ flowchart TD
 | Domain | `author_today/domain/models.py` |
 | CLI | `author_today/cli.py` |
 | Pipeline | `author_today/pipeline/sync_reads.py` |
-| Analyze | `author_today/analyze/funnel.py`, `funnel_compare.py`, `stats_test.py` |
+| Analyze | `author_today/analyze/funnel.py`, `funnel_compare.py`, `hypothesis_tests.py`, `formatting.py`, `chapter_filters.py` |
 | Storage | `author_today/storage/mssql_repo.py`, `persist.py`, `mssql/schema.sql` |
 | Scripts | `scripts/report_funnel.py`, `report_funnel_compare.py`, `delete_runs.py` |
 | Config | `config/settings.py`, `books.yaml` |

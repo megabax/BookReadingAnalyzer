@@ -69,7 +69,7 @@
 
 ### scipy не в requirements.txt
 
-`stats_test.py` работает без scipy (fallback); при установленном scipy используется `ttest_ind`.
+`hypothesis_tests.py` работает без scipy (fallback); при установленном scipy используется `ttest_ind`.
 
 ---
 
@@ -78,7 +78,7 @@
 | Проблема | Где |
 |----------|-----|
 | SQL в analyze и delete_runs, не в repo | см. refactoring_plan §2 |
-| `stats_test.py` — имя как у тестов | analyze/ |
+| ~~`stats_test.py`~~ → `hypothesis_tests.py` | analyze/ ✅ |
 | `books.yaml` не читается | config/ |
 | `ReadRepository` не используется единообразно | storage/ |
 | `scripts/report.py` — placeholder | scripts/ |

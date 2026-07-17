@@ -7,7 +7,9 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from author_today.analyze.stats_test import mean_and_sigma, welch_ttest_pvalue
+from author_today.analyze.chapter_filters import is_book_page
+from author_today.analyze.formatting import fmt_decimal_ru, fmt_pvalue, pct
+from author_today.analyze.hypothesis_tests import mean_and_sigma, welch_ttest_pvalue
 from author_today.domain.models import DailyMatrix, ReadSnapshot
 from author_today.storage.mssql_repo import create_mssql_repository
 from config.settings import Settings
@@ -44,10 +46,6 @@ class FunnelCompareReport:
     rows: tuple[ChapterCompareRow, ...]
 
 
-def _is_book_page(name: str) -> bool:
-    return name.strip().lower() == "страница книги"
-
-
 def _daily_pct_from_matrix(
     matrix: DailyMatrix,
     *,
@@ -65,16 +63,15 @@ def _daily_pct_from_matrix(
         _day, by_order = day_rows
         if baseline_chapter_order not in by_order:
             continue
-        baseline_name, baseline_views = by_order[baseline_chapter_order]
+        _baseline_name, baseline_views = by_order[baseline_chapter_order]
         if baseline_views <= 0:
             continue
 
         for order, (name, views) in sorted(by_order.items()):
-            if skip_book_page and _is_book_page(name):
+            if skip_book_page and is_book_page(name):
                 continue
             chapter_names.setdefault(order, name)
-            pct = round(100.0 * views / baseline_views, 2)
-            series.setdefault(order, []).append(pct)
+            series.setdefault(order, []).append(pct(views, baseline_views, places=2))
 
     result: dict[int, tuple[str, list[float]]] = {}
     for order in sorted(series):
@@ -193,18 +190,6 @@ def daily_matrix_from_mssql(
     return daily_matrix_from_snapshot(snapshot)
 
 
-def _fmt_decimal(value: float, places: int = 2) -> str:
-    return f"{value:.{places}f}".replace(".", ",")
-
-
-def _fmt_pvalue(p: float | None) -> str:
-    if p is None:
-        return "—"
-    if p < 0.0001:
-        return f"{p:.2e}".replace(".", ",")
-    return _fmt_decimal(p, 4)
-
-
 def print_funnel_compare(report: FunnelCompareReport, *, label_a: str = "A", label_b: str = "B") -> None:
     print(
         f"Сравнение воронок | book_id={report.book_id} | "
@@ -239,7 +224,7 @@ def print_funnel_compare(report: FunnelCompareReport, *, label_a: str = "A", lab
             f"{row.site_chapter_order:>4}  {name:<24}  "
             f"{row.period_a.mean_pct:>7.2f} {row.period_a.sigma_pct:>6.2f} {row.period_a.n_days:>4}  "
             f"{row.period_b.mean_pct:>7.2f} {row.period_b.sigma_pct:>6.2f} {row.period_b.n_days:>4}  "
-            f"{row.mean_diff:>+8.2f}  {_fmt_pvalue(row.p_value):>10}{sig}"
+            f"{row.mean_diff:>+8.2f}  {fmt_pvalue(row.p_value):>10}{sig}"
         )
 
     print()
@@ -271,14 +256,14 @@ def save_funnel_compare_csv(report: FunnelCompareReport, path: Path) -> Path:
                 [
                     row.site_chapter_order,
                     row.chapter_name,
-                    _fmt_decimal(row.period_a.mean_pct),
-                    _fmt_decimal(row.period_a.sigma_pct),
+                    fmt_decimal_ru(row.period_a.mean_pct, 2),
+                    fmt_decimal_ru(row.period_a.sigma_pct, 2),
                     row.period_a.n_days,
-                    _fmt_decimal(row.period_b.mean_pct),
-                    _fmt_decimal(row.period_b.sigma_pct),
+                    fmt_decimal_ru(row.period_b.mean_pct, 2),
+                    fmt_decimal_ru(row.period_b.sigma_pct, 2),
                     row.period_b.n_days,
-                    _fmt_decimal(row.mean_diff),
-                    _fmt_pvalue(row.p_value),
+                    fmt_decimal_ru(row.mean_diff, 2),
+                    fmt_pvalue(row.p_value),
                     "да" if row.p_value is not None and row.p_value < 0.05 else "",
                 ]
             )

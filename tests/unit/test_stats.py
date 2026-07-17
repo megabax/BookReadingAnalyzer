@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from author_today.analyze.stats_test import mean_and_sigma, welch_ttest_pvalue
+from author_today.analyze.hypothesis_tests import mean_and_sigma, welch_ttest_pvalue
 
 try:
     from scipy.stats import ttest_ind
