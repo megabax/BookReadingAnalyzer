@@ -57,7 +57,7 @@
 
 - [x] Прочитан ADR-008
 - [x] `pip install -e .` работает без `sys.path` hack (`pyproject.toml`, скрипты очищены)
-- [ ] Общие argparse-helpers для funnel-скриптов
+- [x] Общие argparse-helpers для funnel-скриптов (`author_today/cli_common.py`)
 - [x] `--help` всех entry points без ошибок (после editable-установки)
 
 ---
