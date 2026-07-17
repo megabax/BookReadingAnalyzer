@@ -82,7 +82,7 @@
 | ~~`stats_test.py`~~ → `hypothesis_tests.py` | analyze/ ✅ |
 | `books.yaml` не читается | config/ |
 | `ReadRepository` не используется единообразно | storage/ |
-| `scripts/report.py` — placeholder | scripts/ |
+| ~~`scripts/report.py`~~ удалён | — |
 | Unit-тесты есть (`pytest`); editable-install через `pyproject.toml` | — |
 
 ---

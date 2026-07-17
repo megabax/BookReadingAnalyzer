@@ -67,7 +67,6 @@ MS SQL A/B ► load_snapshot() ──► daily_matrix() ──► compare_funnel
 | `mssql_repo.py` | `ensure_schema`, `save_snapshot`, `list_runs`, `load_snapshot`, `delete_runs_by_fetched_at` |
 | `mssql/connection.py` | pyodbc, connection string из `Settings` |
 | `base.py` | Protocol `ReadRepository` (используется частично) |
-| `sqlite_repo.py` | Заглушка |
 
 ## Конфигурация
 
@@ -95,4 +94,4 @@ MS SQL A/B ► load_snapshot() ──► daily_matrix() ──► compare_funnel
 ## Что не входит в основной пакет
 
 - `legacy/` — старые эксперименты, не импортируются
-- `reclan.csv` / `analyze/sales.py` — продажи, отдельный источник
+- продажи / `reclan.csv` — вне текущего scope (модуль `analyze/sales.py` удалён)

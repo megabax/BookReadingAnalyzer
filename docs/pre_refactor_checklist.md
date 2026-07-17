@@ -66,9 +66,9 @@
 
 - [x] `chapter_filters`, `formatting` выделены (`snapshot_loaders` — опционально позже)
 - [x] `stats_test.py` → `hypothesis_tests.py` (ADR-006), импорты обновлены
-- [ ] Решение по stubs: report.py, sqlite, sales (удалить или оставить с пометкой)
+- [x] Решение по stubs: report.py, sqlite_repo, sales (+ мёртвый reads.py) удалены
 - [ ] `REPORTS_DIR` в settings (константа уже есть; подключить в скриптах)
-- [ ] README «Структура» обновлена
+- [x] README «Структура» обновлена
 
 ---
 

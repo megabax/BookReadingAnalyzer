@@ -5,25 +5,26 @@
 ## Структура
 
 ```
-author_today/          # основной пакет
-  domain/             # модели ReadSnapshot, StatsTable
-  auth/               # авторизация (ручная / авто — заготовка)
-  browser/            # Selenium Chrome
-  fetch/              # URL и загрузка страницы
-  parse/              # парсер Kendo Grid
-  storage/            # JSON, MS SQL (mssql_repo.py)
-  analyze/            # сводки и reclan.csv
-  pipeline/           # оркестратор sync_reads
-  services/           # слой для UI (reports.py)
-  cli.py              # аргументы командной строки
+author_today/             # основной пакет
+  domain/                # ReadSnapshot, StatsTable
+  auth/                  # авторизация (ручная / AT_EMAIL)
+  browser/               # Selenium Chrome
+  fetch/                 # URL, периоды, загрузка страницы
+  parse/                 # парсер Kendo Grid
+  storage/               # MS SQL (mssql_repo), JSON export
+  analyze/               # воронка, compare, hypothesis_tests
+  pipeline/              # sync_reads
+  services/              # слой для Streamlit (reports, fetch, books)
+  cli.py / cli_common.py # CLI загрузки и общие argparse-хелперы
 
-config/               # settings, books.yaml
-scripts/              # fetch_reads.py, report.py
-data/raw/             # снимки JSON
-scripts/init_mssql.py # создание таблиц в MS SQL
-legacy/               # старые эксперименты
-selenium_stats.py     # точка входа CLI
-streamlit_app.py      # веб-интерфейс (Streamlit)
+config/                  # settings, books.yaml
+scripts/                 # fetch_reads, report_funnel*, delete_runs, init_mssql, …
+data/raw/                # legacy JSON-снимки (опционально)
+data/reports/            # CSV отчётов
+legacy/                  # старые эксперименты (не в пакете)
+selenium_stats.py        # точка входа CLI (загрузка)
+streamlit_app.py         # веб-интерфейс
+tests/                   # pytest
 ```
 
 ## Установка
@@ -45,13 +46,13 @@ UI: `pip install -e ".[ui]"` или `pip install -r requirements-ui.txt`.
 ## Запуск
 
 ```bat
-REM По умолчанию — июль 2025, book_id 323389 (см. config/settings.py)
+REM Период по умолчанию — прошлый месяц (см. config/settings.py)
 python selenium_stats.py --wait-login 60
 
 REM По URL
 python selenium_stats.py "https://author.today/report/work/stats?..."
 
-REM По периоду (URL соберётся из AT_BOOK_ID или AT_WORK_ID)
+REM По периоду (URL соберётся из AT_BOOK_ID)
 python selenium_stats.py --book-id 323389 --start 2025-07-01 --end 2025-07-31 --wait-login 60 -o reads.csv
 
 REM То же через scripts
@@ -76,7 +77,7 @@ python scripts/fetch_reads.py --start 2025-07-01 --end 2025-07-31 --wait-login 6
 | `dbo.chapter_reads` | Прочтения: дата, глава, views (структура `dates` из JSON) |
 
 ```bat
-pip install -r requirements.txt
+pip install -e .
 python scripts/init_mssql.py
 python selenium_stats.py
 ```
@@ -106,17 +107,6 @@ python scripts/report_funnel.py --book-id 323389 --base-order 2 --start 2025-07-
 
 Флаг `--csv` / `-o` сохраняет таблицу в CSV (разделитель `;`, UTF-8 с BOM для Excel). Без имени файла — `data/reports/funnel_<book_id>_<start>_<end>.csv`.
 
-## Веб-интерфейс (Streamlit)
-
-Каркас UI подготовлен; полные экраны отчётов — после рефакторинга SQL/snapshot (см. `refactoring_plan.md` §18).
-
-```bat
-pip install -e ".[ui]"
-streamlit run streamlit_app.py
-```
-
-Подробно: [`docs/ui_streamlit.md`](docs/ui_streamlit.md).
-
 ## Сравнение двух воронок (период A vs B)
 
 По каждому дню и главе: % просмотров от базовой главы; по периоду — среднее **μ** и **σ** (по дням), для каждой главы — **p-value** (Welch t-test, двусторонний).
@@ -131,8 +121,18 @@ python scripts/report_funnel_compare.py --book-id 323389 --base-order 2 ^
 
 `*` в консоли — p < 0,05 (различие средних дневных % значимо).
 
-## Дальнейшие шаги
-- `scripts/report.py` — прочие отчёты
-- [`refactoring_plan.md`](refactoring_plan.md) и [`docs/`](docs/README.md) — план и документация перед рефакторингом
+## Веб-интерфейс (Streamlit)
 
-172953
+Рабочие вкладки: загрузка, воронка, сравнение периодов.
+
+```bat
+pip install -e ".[ui]"
+streamlit run streamlit_app.py
+```
+
+Подробно: [`docs/ui_streamlit.md`](docs/ui_streamlit.md).
+
+## Документация
+
+- [`refactoring_plan.md`](refactoring_plan.md) — план рефакторинга
+- [`docs/`](docs/README.md) — глоссарий, ADR, known issues, стратегия тестов

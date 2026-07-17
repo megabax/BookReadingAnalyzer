@@ -7,11 +7,9 @@ from author_today.storage.mssql_repo import (
     create_mssql_repository,
 )
 from author_today.storage.persist import persist_snapshot
-from author_today.storage.sqlite_repo import SqliteReadRepository
 
 __all__ = [
     "ReadRepository",
-    "SqliteReadRepository",
     "MssqlReadRepository",
     "DeleteRunsPreview",
     "DeleteRunsResult",

@@ -111,7 +111,7 @@ pytest + фикстуры; `stats_test.py` переименован в `hypothes
 
 - Protocol в `author_today/storage/base.py`
 - `MssqlReadRepository` не объявляет реализацию; `list_runs` с `limit` не в Protocol
-- `SqliteReadRepository` — заглушка с `NotImplementedError`
+- `SqliteReadRepository` — удалён (2026-07); источник правды — MS SQL
 - `persist.py` вызывает `create_mssql_repository()` напрямую
 
 **Рекомендация:** фабрика `get_repository(settings)` через Protocol, либо удалить Protocol/SQLite до реальной необходимости.
@@ -165,17 +165,11 @@ pytest + фикстуры; `stats_test.py` переименован в `hypothes
 
 ---
 
-### 14. Заглушки и неиспользуемый код
+### 14. Заглушки и неиспользуемый код ✅ удалены (2026-07)
 
-| Файл | Статус |
-|------|--------|
-| `scripts/report.py` | placeholder |
-| `author_today/storage/sqlite_repo.py` | `NotImplementedError` |
-| `author_today/analyze/reads.py` | минимальные сводки, только из `report.py` |
-| `author_today/analyze/sales.py` | `load_sales_csv()` не вызывается из основного кода |
-| `author_today/fetch/stats_url.py::parse_period_from_url` | TODO, возвращает `(None, None)` |
+Удалены: `scripts/report.py`, `storage/sqlite_repo.py`, `analyze/sales.py`, `analyze/reads.py`.
 
-**Рекомендация:** реализовать или убрать; не экспортировать мёртвый API из `analyze/__init__.py`.
+`parse_period_from_url` — TODO, возвращает `(None, None)` (низкий приоритет).
 
 ---
 
@@ -197,11 +191,9 @@ rows_count = sum(len(day["chapters"]) for day in snapshot.to_document()["dates"]
 
 ---
 
-### 17. README и структура пакета
+### 17. README и структура пакета ✅ (2026-07)
 
-README описывает `analyze/` как «сводки и reclan.csv», тогда как основная фича — funnel compare. `legacy/` — архив, не смешивать с пакетом.
-
-**Рекомендация:** обновить раздел «Структура» в README после рефакторинга.
+Раздел «Структура» обновлён: funnel/compare, services, cli_common; заглушки убраны из описания.
 
 ---
 
@@ -247,7 +239,7 @@ flowchart TD
 3. **SQL в storage** — ✅ сделано (п. 2)
 4. **Именование** — ✅ сделано (п. 1)
 5. **CLI / services** — `pip install -e .` ✅; `cli_common` ✅; `services/` под Streamlit ✅
-6. **Заглушки и README** — по мере сил
+6. **Заглушки и README** — stubs удалены ✅; README обновлён ✅
 7. **Streamlit** — каркас ✅; отчёты в UI — этап A (§2–§3 готовы)
 
 ---
