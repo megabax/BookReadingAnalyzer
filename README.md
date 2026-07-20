@@ -1,4 +1,4 @@
-# AutorToday
+# AuthorToday
 
 Загрузка и анализ статистики прочтений книг на [author.today](https://author.today).
 

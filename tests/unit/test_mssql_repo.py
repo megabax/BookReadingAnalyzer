@@ -15,7 +15,7 @@ from config.settings import Settings
 def repo() -> MssqlReadRepository:
     settings = Settings(
         mssql_server="localhost",
-        mssql_database="AutorToday",
+        mssql_database="AuthorToday",
         mssql_user="sa",
         mssql_password="secret",
     )

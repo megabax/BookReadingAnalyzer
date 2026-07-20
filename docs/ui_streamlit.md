@@ -1,6 +1,6 @@
 # Веб-интерфейс на Streamlit
 
-Рекомендации по UI для AutorToday: выбор технологии, архитектура, этапы, связь с рефакторингом.
+Рекомендации по UI для AuthorToday: выбор технологии, архитектура, этапы, связь с рефакторингом.
 
 ---
 
@@ -27,7 +27,7 @@
 ## Установка
 
 ```bat
-cd D:\Pythons\AutorToday
+cd D:\Pythons\AuthorToday
 venv\Scripts\activate.bat
 pip install -e ".[ui]"
 streamlit run streamlit_app.py

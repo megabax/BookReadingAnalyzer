@@ -1,5 +1,5 @@
 """
-Главная точка входа проекта AutorToday.
+Главная точка входа проекта AuthorToday.
 
 Совместимость: python selenium_stats.py [аргументы]
 Рекомендуется:     python scripts/fetch_reads.py [аргументы]

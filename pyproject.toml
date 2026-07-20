@@ -3,7 +3,7 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "autor-today"
+name = "author-today"
 version = "0.1.0"
 description = "Загрузка и анализ статистики прочтений author.today"
 readme = "README.md"

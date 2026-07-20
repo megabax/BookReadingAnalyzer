@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Точка входа веб-интерфейса AutorToday.
+Точка входа веб-интерфейса AuthorToday.
 
 Запуск из корня проекта (после `pip install -e ".[ui]"`):
     streamlit run streamlit_app.py
@@ -29,7 +29,7 @@ from author_today.services.reports import load_funnel_compare, load_funnel_steps
 from config.settings import Settings
 
 st.set_page_config(
-    page_title="AutorToday",
+    page_title="AuthorToday",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -327,7 +327,7 @@ def _render_book_load_info(book_id: int) -> None:
         st.caption("Записи fetch_runs не найдены, но строки chapter_reads есть.")
 
 
-st.title("AutorToday")
+st.title("AuthorToday")
 st.caption("Статистика прочтений author.today")
 
 with st.sidebar:
