@@ -36,7 +36,13 @@ def main() -> int:
         help="Пауза для ручного входа (перекрывает AT_WAIT_LOGIN)",
     )
     parser.add_argument("--timeout", type=int, help="Таймаут ожидания таблицы")
-    parser.add_argument("--headless", action="store_true")
+    parser.add_argument(
+        "--headless",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Headless Chrome (по умолчанию из AT_HEADLESS, обычно включён). "
+        "--no-headless — показать окно.",
+    )
     parser.add_argument("--user-data-dir", help="Профиль Chrome")
     parser.add_argument("-o", "--output", type=Path, help="Сохранить CSV")
     parser.add_argument("--json", type=Path, help="Сохранить JSON")
@@ -72,10 +78,12 @@ def main() -> int:
         settings.wait_login_seconds = args.wait_login
     if args.timeout is not None:
         settings.page_timeout = args.timeout
-    if args.headless:
-        settings.headless = True
+    if args.headless is not None:
+        settings.headless = args.headless
     if args.user_data_dir:
         settings.chrome_user_data_dir = args.user_data_dir
+
+    print(f"Браузер: {'headless' if settings.headless else 'с окном Chrome'}")
 
     try:
         if args.url:

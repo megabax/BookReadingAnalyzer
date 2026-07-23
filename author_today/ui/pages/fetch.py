@@ -41,10 +41,17 @@ class FetchPage(Page):
 
     def render(self) -> None:
         st.subheader("Загрузка с author.today")
-        st.markdown(
-            "Скачивание таблицы прочтений за период и сохранение в MS SQL. "
-            "Откроется окно Chrome — при ручном входе используйте паузу ниже."
-        )
+        if self._settings.headless:
+            st.markdown(
+                "Скачивание таблицы прочтений за период и сохранение в MS SQL. "
+                "Chrome в headless (`AT_HEADLESS=1`). Для окна браузера задайте "
+                "`AT_HEADLESS=0` в `.env`."
+            )
+        else:
+            st.markdown(
+                "Скачивание таблицы прочтений за период и сохранение в MS SQL. "
+                "Откроется окно Chrome — при ручном входе используйте паузу ниже."
+            )
 
         awaiting = self._active_session()
         if awaiting is not None:
@@ -69,6 +76,10 @@ class FetchPage(Page):
 
         wait_login = 0
         with st.expander("Авторизация и опции", expanded=not self._settings.has_auto_login()):
+            st.caption(
+                f"Браузер: **{'headless' if self._settings.headless else 'с окном'}** "
+                f"(AT_HEADLESS в `.env`)."
+            )
             if self._settings.has_auto_login():
                 st.caption(
                     "Вход: автоматически (AT_EMAIL / AT_PASSWORD из .env). "

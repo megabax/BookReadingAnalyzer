@@ -55,7 +55,7 @@ class Settings:
     book_id: int = 323389
     value_type: str = "hit"
     chrome_user_data_dir: str | None = None
-    headless: bool = False
+    headless: bool = True
     page_timeout: int = 45
     wait_login_seconds: int = 0
     auth_timeout: int = 120
@@ -79,7 +79,8 @@ class Settings:
             book_id=int(book_id_raw),
             value_type=os.getenv("AT_VALUE_TYPE", "hit"),
             chrome_user_data_dir=os.getenv("CHROME_USER_DATA_DIR") or None,
-            headless=os.getenv("AT_HEADLESS", "").lower() in ("1", "true", "yes"),
+            # По умолчанию headless включён; AT_HEADLESS=0|false|no — показать окно Chrome.
+            headless=os.getenv("AT_HEADLESS", "1").lower() not in ("0", "false", "no"),
             page_timeout=int(os.getenv("AT_PAGE_TIMEOUT", "45")),
             wait_login_seconds=int(os.getenv("AT_WAIT_LOGIN", "0")),
             auth_timeout=int(os.getenv("AT_AUTH_TIMEOUT", "120")),
