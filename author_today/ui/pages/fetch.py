@@ -4,12 +4,22 @@ from __future__ import annotations
 
 import streamlit as st
 
+from author_today.errors import DeviceCodeRequired
 from author_today.services.books import load_book_catalog
-from author_today.services.fetch import fetch_reads_for_period
+from author_today.services.fetch import (
+    FetchResult,
+    FetchSession,
+    get_session,
+    register_session,
+)
 from author_today.ui.base import Page
 from author_today.ui.components.book_load_info import BookLoadInfoPanel
 from author_today.ui.components.book_picker import BookPicker
 from config.settings import Settings
+
+_SESSION_KEY = "fetch_session_id"
+_HINT_KEY = "fetch_code_hint"
+_RESULT_KEY = "fetch_last_result"
 
 
 class FetchPage(Page):
@@ -36,6 +46,11 @@ class FetchPage(Page):
             "Откроется окно Chrome — при ручном входе используйте паузу ниже."
         )
 
+        awaiting = self._active_session()
+        if awaiting is not None:
+            self._render_code_continue(awaiting)
+            return
+
         catalog = load_book_catalog(self._settings)
         book_id = self._book_picker.pick(catalog, key_prefix="fetch")
         self._load_info.render(book_id)
@@ -55,7 +70,10 @@ class FetchPage(Page):
         wait_login = 0
         with st.expander("Авторизация и опции", expanded=not self._settings.has_auto_login()):
             if self._settings.has_auto_login():
-                st.caption("Вход: автоматически (AT_EMAIL / AT_PASSWORD из .env).")
+                st.caption(
+                    "Вход: автоматически (AT_EMAIL / AT_PASSWORD из .env). "
+                    "Если сайт запросит код — появится поле ввода."
+                )
             else:
                 wait_login = st.number_input(
                     "Пауза для ручного входа (сек)",
@@ -64,11 +82,6 @@ class FetchPage(Page):
                     value=max(self._settings.wait_login_seconds, 60),
                     help="Время на вход в author.today в открывшемся браузере.",
                 )
-            device_code = st.text_input(
-                "Код подтверждения устройства / 2FA",
-                value="",
-                help="Если author.today запросит код с почты — введите заранее или повторите загрузку.",
-            )
             save_mssql = st.checkbox(
                 "Сохранить в MS SQL",
                 value=self._settings.has_mssql(),
@@ -86,15 +99,21 @@ class FetchPage(Page):
         )
 
         if st.button("Загрузить период", type="primary", icon="⬇️"):
-            self._run_fetch(
+            self._start_fetch(
                 book_id=book_id,
                 period_start=period_start,
                 period_end=period_end,
                 save_mssql=save_mssql,
                 save_raw=save_raw,
                 wait_login_seconds=wait_login_seconds,
-                device_code=device_code or None,
             )
+
+        last_result = st.session_state.get(_RESULT_KEY)
+        if isinstance(last_result, FetchResult):
+            self._render_success(last_result)
+            if st.button("Скрыть результат", key="fetch_clear_result"):
+                st.session_state.pop(_RESULT_KEY, None)
+                st.rerun()
 
         if catalog:
             with st.expander("Книги в каталоге"):
@@ -112,7 +131,68 @@ class FetchPage(Page):
                     width="stretch",
                 )
 
-    def _run_fetch(
+    def _active_session(self) -> FetchSession | None:
+        session_id = st.session_state.get(_SESSION_KEY)
+        if not session_id:
+            return None
+        session = get_session(session_id)
+        if session is None or not session.awaiting_code:
+            st.session_state.pop(_SESSION_KEY, None)
+            st.session_state.pop(_HINT_KEY, None)
+            return None
+        return session
+
+    def _render_code_continue(self, session: FetchSession) -> None:
+        hint = session.hint or st.session_state.get(_HINT_KEY) or "код подтверждения"
+        st.warning(
+            f"Сайт запросил **{hint}**. Браузер оставлен открытым — "
+            "введите код из письма и нажмите «Продолжить»."
+        )
+        st.caption(
+            f"book_id={session.book_id}, "
+            f"{session.period_start} — {session.period_end}"
+        )
+        code = st.text_input(
+            "Код подтверждения устройства / 2FA",
+            value="",
+            key="fetch_device_code_input",
+            help="Код будет введён в открытое окно Chrome программно.",
+        )
+        col_ok, col_cancel = st.columns(2)
+        with col_ok:
+            continue_clicked = st.button("Продолжить", type="primary", key="fetch_continue")
+        with col_cancel:
+            cancel_clicked = st.button("Отменить загрузку", key="fetch_cancel")
+
+        if cancel_clicked:
+            session.close()
+            st.session_state.pop(_SESSION_KEY, None)
+            st.session_state.pop(_HINT_KEY, None)
+            st.info("Загрузка отменена, браузер закрыт.")
+            st.rerun()
+
+        if continue_clicked:
+            with st.spinner("Отправка кода и продолжение загрузки… Не закрывайте браузер."):
+                try:
+                    result = session.continue_with_code(code)
+                except DeviceCodeRequired as exc:
+                    st.session_state[_HINT_KEY] = exc.hint
+                    st.error(
+                        f"Снова нужен код: {exc.hint}. Проверьте код и нажмите «Продолжить»."
+                    )
+                    return
+                except Exception as exc:
+                    st.session_state.pop(_SESSION_KEY, None)
+                    st.session_state.pop(_HINT_KEY, None)
+                    st.error(f"Ошибка загрузки: {exc}")
+                    return
+
+            st.session_state.pop(_SESSION_KEY, None)
+            st.session_state.pop(_HINT_KEY, None)
+            st.session_state[_RESULT_KEY] = result
+            st.rerun()
+
+    def _start_fetch(
         self,
         *,
         book_id: int,
@@ -121,7 +201,6 @@ class FetchPage(Page):
         save_mssql: bool,
         save_raw: bool,
         wait_login_seconds: int,
-        device_code: str | None,
     ) -> None:
         if period_start > period_end:
             st.error("Начало периода не может быть позже конца.")
@@ -130,25 +209,38 @@ class FetchPage(Page):
             st.error("Включите сохранение в MS SQL или JSON.")
             return
 
+        session = register_session(
+            FetchSession(
+                self._settings,
+                book_id,
+                period_start,
+                period_end,
+                save_mssql=save_mssql,
+                save_raw=save_raw,
+                wait_login_seconds=wait_login_seconds,
+            )
+        )
+
         with st.spinner(
             f"Загрузка book_id={book_id}, {period_start} — {period_end}. "
             "Не закрывайте браузер до завершения."
         ):
             try:
-                result = fetch_reads_for_period(
-                    self._settings,
-                    book_id,
-                    period_start,
-                    period_end,
-                    save_mssql=save_mssql,
-                    save_raw=save_raw,
-                    wait_login_seconds=wait_login_seconds,
-                    device_code=device_code,
-                )
+                result = session.start()
+            except DeviceCodeRequired as exc:
+                st.session_state[_SESSION_KEY] = session.session_id
+                st.session_state[_HINT_KEY] = exc.hint
+                st.rerun()
+                return
             except Exception as exc:
+                session.close()
                 st.error(f"Ошибка загрузки: {exc}")
                 return
 
+        st.session_state[_RESULT_KEY] = result
+        st.rerun()
+
+    def _render_success(self, result: FetchResult) -> None:
         st.success("Загрузка завершена.")
         st.metric("Глав в таблице", result.chapter_count)
         st.metric("Дней в таблице", result.day_count)
@@ -158,8 +250,8 @@ class FetchPage(Page):
                 f"**{result.table_date_max}**"
             )
             if (
-                result.table_date_min > period_start
-                or result.table_date_max < period_end
+                result.table_date_min > result.period_start
+                or result.table_date_max < result.period_end
             ):
                 st.warning(
                     "С сайта пришли не все дни запрошенного периода. "
@@ -181,4 +273,3 @@ class FetchPage(Page):
             "Сообщение `ConnectionResetError` в консоли после загрузки на Windows "
             "обычно безвредно — это закрытие канала Chrome/Selenium."
         )
-        st.rerun()
