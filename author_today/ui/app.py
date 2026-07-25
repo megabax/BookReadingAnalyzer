@@ -8,6 +8,7 @@ from author_today.ui.base import Page
 from author_today.ui.cache import ReportCache
 from author_today.ui.components.book_load_info import BookLoadInfoPanel
 from author_today.ui.components.book_picker import BookPicker
+from author_today.ui.components.fetch_status import render_fetch_status_banner
 from author_today.ui.components.sidebar import DataSourceSidebar
 from author_today.ui.pages.compare import ComparePage
 from author_today.ui.pages.fetch import FetchPage
@@ -23,14 +24,19 @@ class StreamlitApp:
         settings: Settings,
         pages: list[Page] | None = None,
         sidebar: DataSourceSidebar | None = None,
+        report_cache: ReportCache | None = None,
     ) -> None:
         self._settings = settings
         self._sidebar = sidebar or DataSourceSidebar(settings)
-        self._pages = pages if pages is not None else self._default_pages(settings)
+        if pages is None:
+            self._report_cache = report_cache or ReportCache(settings)
+            self._pages = self._build_default_pages(settings, self._report_cache)
+        else:
+            self._report_cache = report_cache
+            self._pages = pages
 
     @staticmethod
-    def _default_pages(settings: Settings) -> list[Page]:
-        cache = ReportCache(settings)
+    def _build_default_pages(settings: Settings, cache: ReportCache) -> list[Page]:
         book_picker = BookPicker(settings)
         load_info = BookLoadInfoPanel(settings)
         return [
@@ -45,6 +51,7 @@ class StreamlitApp:
         st.caption("Статистика прочтений author.today")
 
         self._sidebar.render()
+        render_fetch_status_banner(report_cache=self._report_cache)
 
         tabs = st.tabs([page.title for page in self._pages])
         for tab, page in zip(tabs, self._pages):
@@ -54,4 +61,7 @@ class StreamlitApp:
 
 def create_app(settings: Settings | None = None) -> StreamlitApp:
     """Фабрика приложения (удобная точка для тестов и entry point)."""
-    return StreamlitApp(settings or Settings.from_env())
+    settings = settings or Settings.from_env()
+    cache = ReportCache(settings)
+    pages = StreamlitApp._build_default_pages(settings, cache)
+    return StreamlitApp(settings, pages=pages, report_cache=cache)

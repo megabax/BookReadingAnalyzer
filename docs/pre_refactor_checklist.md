@@ -78,7 +78,7 @@
 - [x] `author_today/services/reports.py`
 - [x] `docs/ui_streamlit.md`, ADR-011, §18 в refactoring_plan
 - [x] Этап A: воронка и compare в UI (после §2–§3)
-- [ ] Этап C: загрузка Selenium из UI
+- [x] Этап C: загрузка Selenium из UI (фон, прогресс, баннер, код устройства)
 
 ---
 

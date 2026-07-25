@@ -1,25 +1,21 @@
-"""Вкладка «Загрузка» с author.today."""
+"""Вкладка «Загрузка» с author.today (фоновый FetchJob)."""
 
 from __future__ import annotations
 
 import streamlit as st
 
-from author_today.errors import DeviceCodeRequired
 from author_today.services.books import load_book_catalog
-from author_today.services.fetch import (
-    FetchResult,
-    FetchSession,
-    get_session,
-    register_session,
-)
+from author_today.services.fetch import FetchJob, FetchResult, register_job
 from author_today.ui.base import Page
 from author_today.ui.components.book_load_info import BookLoadInfoPanel
 from author_today.ui.components.book_picker import BookPicker
+from author_today.ui.components.fetch_status import (
+    RESULT_STATE_KEY,
+    bind_job,
+    clear_job_binding,
+    resolve_job,
+)
 from config.settings import Settings
-
-_SESSION_KEY = "fetch_session_id"
-_HINT_KEY = "fetch_code_hint"
-_RESULT_KEY = "fetch_last_result"
 
 
 class FetchPage(Page):
@@ -44,19 +40,23 @@ class FetchPage(Page):
         if self._settings.headless:
             st.markdown(
                 "Скачивание таблицы прочтений за период и сохранение в MS SQL. "
-                "Chrome в headless (`AT_HEADLESS=1`). Для окна браузера задайте "
+                "Загрузка идёт в фоне (`AT_HEADLESS=1`). Для окна браузера задайте "
                 "`AT_HEADLESS=0` в `.env`."
             )
         else:
             st.markdown(
                 "Скачивание таблицы прочтений за период и сохранение в MS SQL. "
-                "Откроется окно Chrome — при ручном входе используйте паузу ниже."
+                "Загрузка идёт в фоне; при необходимости откроется окно Chrome."
             )
 
-        awaiting = self._active_session()
-        if awaiting is not None:
-            self._render_code_continue(awaiting)
-            return
+        job = resolve_job()
+        if job is not None:
+            progress = job.snapshot()
+            if progress.is_active or progress.status in ("done", "error", "cancelled"):
+                self._render_job_panel(job)
+                if progress.is_active or progress.status in ("error", "cancelled"):
+                    return
+                # done — ниже можно показать детали результата и форму новой загрузки
 
         catalog = load_book_catalog(self._settings)
         book_id = self._book_picker.pick(catalog, key_prefix="fetch")
@@ -78,7 +78,7 @@ class FetchPage(Page):
         with st.expander("Авторизация и опции", expanded=not self._settings.has_auto_login()):
             st.caption(
                 f"Браузер: **{'headless' if self._settings.headless else 'с окном'}** "
-                f"(AT_HEADLESS в `.env`)."
+                f"(AT_HEADLESS в `.env`). Загрузка — фоновая задача."
             )
             if self._settings.has_auto_login():
                 st.caption(
@@ -109,7 +109,13 @@ class FetchPage(Page):
             else self._settings.wait_login_seconds
         )
 
-        if st.button("Загрузить период", type="primary", icon="⬇️"):
+        start_disabled = bool(job and job.snapshot().is_active)
+        if st.button(
+            "Загрузить период",
+            type="primary",
+            icon="⬇️",
+            disabled=start_disabled,
+        ):
             self._start_fetch(
                 book_id=book_id,
                 period_start=period_start,
@@ -119,11 +125,11 @@ class FetchPage(Page):
                 wait_login_seconds=wait_login_seconds,
             )
 
-        last_result = st.session_state.get(_RESULT_KEY)
+        last_result = st.session_state.get(RESULT_STATE_KEY)
         if isinstance(last_result, FetchResult):
             self._render_success(last_result)
             if st.button("Скрыть результат", key="fetch_clear_result"):
-                st.session_state.pop(_RESULT_KEY, None)
+                st.session_state.pop(RESULT_STATE_KEY, None)
                 st.rerun()
 
         if catalog:
@@ -142,66 +148,81 @@ class FetchPage(Page):
                     width="stretch",
                 )
 
-    def _active_session(self) -> FetchSession | None:
-        session_id = st.session_state.get(_SESSION_KEY)
-        if not session_id:
-            return None
-        session = get_session(session_id)
-        if session is None or not session.awaiting_code:
-            st.session_state.pop(_SESSION_KEY, None)
-            st.session_state.pop(_HINT_KEY, None)
-            return None
-        return session
-
-    def _render_code_continue(self, session: FetchSession) -> None:
-        hint = session.hint or st.session_state.get(_HINT_KEY) or "код подтверждения"
-        st.warning(
-            f"Сайт запросил **{hint}**. Браузер оставлен открытым — "
-            "введите код из письма и нажмите «Продолжить»."
-        )
+    def _render_job_panel(self, job: FetchJob) -> None:
+        progress = job.snapshot()
+        st.markdown("### Статус загрузки")
         st.caption(
-            f"book_id={session.book_id}, "
-            f"{session.period_start} — {session.period_end}"
+            f"book_id={progress.book_id} · "
+            f"{progress.period_start} — {progress.period_end} · "
+            f"порции {progress.chunk_label}"
         )
-        code = st.text_input(
-            "Код подтверждения устройства / 2FA",
-            value="",
-            key="fetch_device_code_input",
-            help="Код будет введён в открытое окно Chrome программно.",
-        )
-        col_ok, col_cancel = st.columns(2)
-        with col_ok:
-            continue_clicked = st.button("Продолжить", type="primary", key="fetch_continue")
-        with col_cancel:
-            cancel_clicked = st.button("Отменить загрузку", key="fetch_cancel")
+        st.progress(progress.fraction)
+        st.write(progress.stage)
 
-        if cancel_clicked:
-            session.close()
-            st.session_state.pop(_SESSION_KEY, None)
-            st.session_state.pop(_HINT_KEY, None)
-            st.info("Загрузка отменена, браузер закрыт.")
-            st.rerun()
+        if progress.status == "running":
+            st.info("Загрузка выполняется в фоне — можно открыть «Воронку» или «Сравнение».")
+            if st.button("Отменить", key="fetch_page_cancel_running"):
+                job.cancel()
+                st.rerun()
+            return
 
-        if continue_clicked:
-            with st.spinner("Отправка кода и продолжение загрузки… Не закрывайте браузер."):
+        if progress.status == "awaiting_code":
+            hint = progress.hint or "код подтверждения"
+            st.warning(
+                f"Сайт запросил **{hint}**. Браузер (или headless-сессия) ждёт код — "
+                "введите его и нажмите «Продолжить»."
+            )
+            code = st.text_input(
+                "Код подтверждения устройства / 2FA",
+                value="",
+                key="fetch_device_code_input",
+            )
+            col_ok, col_cancel = st.columns(2)
+            with col_ok:
+                continue_clicked = st.button(
+                    "Продолжить",
+                    type="primary",
+                    key="fetch_continue",
+                )
+            with col_cancel:
+                cancel_clicked = st.button("Отменить загрузку", key="fetch_cancel")
+
+            if cancel_clicked:
+                job.cancel()
+                st.rerun()
+            if continue_clicked:
                 try:
-                    result = session.continue_with_code(code)
-                except DeviceCodeRequired as exc:
-                    st.session_state[_HINT_KEY] = exc.hint
-                    st.error(
-                        f"Снова нужен код: {exc.hint}. Проверьте код и нажмите «Продолжить»."
-                    )
+                    job.submit_code(code)
+                except ValueError as exc:
+                    st.error(str(exc))
                     return
-                except Exception as exc:
-                    st.session_state.pop(_SESSION_KEY, None)
-                    st.session_state.pop(_HINT_KEY, None)
-                    st.error(f"Ошибка загрузки: {exc}")
-                    return
+                st.toast("Код отправлен, загрузка продолжается…")
+                st.rerun()
+            return
 
-            st.session_state.pop(_SESSION_KEY, None)
-            st.session_state.pop(_HINT_KEY, None)
-            st.session_state[_RESULT_KEY] = result
-            st.rerun()
+        if progress.status == "done" and progress.result is not None:
+            st.session_state[RESULT_STATE_KEY] = progress.result
+            st.success("Фоновая загрузка завершена.")
+            if st.button("Закрыть статус задачи", key="fetch_page_dismiss_done"):
+                job.dismiss()
+                clear_job_binding()
+                st.rerun()
+            return
+
+        if progress.status == "error":
+            st.error(progress.error or "Ошибка загрузки")
+            if st.button("Закрыть", key="fetch_page_dismiss_error"):
+                job.dismiss()
+                clear_job_binding()
+                st.rerun()
+            return
+
+        if progress.status == "cancelled":
+            st.warning("Загрузка отменена.")
+            if st.button("Закрыть", key="fetch_page_dismiss_cancelled"):
+                job.dismiss()
+                clear_job_binding()
+                st.rerun()
 
     def _start_fetch(
         self,
@@ -220,8 +241,13 @@ class FetchPage(Page):
             st.error("Включите сохранение в MS SQL или JSON.")
             return
 
-        session = register_session(
-            FetchSession(
+        existing = resolve_job()
+        if existing is not None and existing.snapshot().is_active:
+            st.warning("Уже есть активная загрузка. Дождитесь завершения или отмените её.")
+            return
+
+        job = register_job(
+            FetchJob(
                 self._settings,
                 book_id,
                 period_start,
@@ -231,24 +257,9 @@ class FetchPage(Page):
                 wait_login_seconds=wait_login_seconds,
             )
         )
-
-        with st.spinner(
-            f"Загрузка book_id={book_id}, {period_start} — {period_end}. "
-            "Не закрывайте браузер до завершения."
-        ):
-            try:
-                result = session.start()
-            except DeviceCodeRequired as exc:
-                st.session_state[_SESSION_KEY] = session.session_id
-                st.session_state[_HINT_KEY] = exc.hint
-                st.rerun()
-                return
-            except Exception as exc:
-                session.close()
-                st.error(f"Ошибка загрузки: {exc}")
-                return
-
-        st.session_state[_RESULT_KEY] = result
+        bind_job(job)
+        job.start()
+        st.toast("Загрузка запущена в фоне")
         st.rerun()
 
     def _render_success(self, result: FetchResult) -> None:

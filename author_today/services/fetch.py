@@ -1,15 +1,17 @@
-"""Загрузка статистики с author.today для UI (с паузой на код устройства)."""
+"""Загрузка статистики с author.today для UI (фон, прогресс, пауза на код)."""
 
 from __future__ import annotations
 
+import queue
+import threading
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import date
+from typing import Literal
 
 from selenium.webdriver.remote.webdriver import WebDriver
-
-import time
 
 from author_today.auth.login_flow import confirmation_code_visible, submit_confirmation_code
 from author_today.browser.factory import create_driver
@@ -19,8 +21,13 @@ from author_today.fetch.periods import needs_monthly_chunks, split_period_into_m
 from author_today.pipeline.sync_reads import _auth_provider, _load_and_persist_period
 from config.settings import Settings, ensure_data_dirs
 
-# Живые Selenium-сессии между rerun Streamlit (один процесс сервера).
+FetchStatus = Literal["idle", "running", "awaiting_code", "done", "error", "cancelled"]
+
+# Синхронные сессии (совместимость / тесты).
 _SESSIONS: dict[str, "FetchSession"] = {}
+# Фоновые задачи UI.
+_JOBS: dict[str, "FetchJob"] = {}
+_jobs_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -35,6 +42,48 @@ class FetchResult:
     saved_raw: bool
     table_date_min: date | None = None
     table_date_max: date | None = None
+
+
+@dataclass
+class FetchProgress:
+    """Снимок прогресса фоновой загрузки (потокобезопасная копия для UI)."""
+
+    status: FetchStatus = "idle"
+    stage: str = ""
+    book_id: int = 0
+    period_start: date | None = None
+    period_end: date | None = None
+    current_chunk: int = 0
+    total_chunks: int = 1
+    hint: str | None = None
+    error: str | None = None
+    result: FetchResult | None = None
+
+    @property
+    def fraction(self) -> float:
+        if self.status == "done":
+            return 1.0
+        if self.status in ("idle", "error", "cancelled"):
+            return 0.0
+        if self.status == "awaiting_code":
+            # Авторизация почти в начале.
+            return 0.08
+        total = max(1, self.total_chunks)
+        # current_chunk — номер порции в работе (1..N); до первой — 0.
+        if self.current_chunk <= 0:
+            return 0.05
+        # Середина текущей порции: (i - 0.5) / N, завершённые — i/N после апдейта stage.
+        return min(0.99, self.current_chunk / total)
+
+    @property
+    def is_active(self) -> bool:
+        return self.status in ("running", "awaiting_code")
+
+    @property
+    def chunk_label(self) -> str:
+        total = max(1, self.total_chunks)
+        current = max(0, self.current_chunk)
+        return f"{current}/{total}"
 
 
 def _raise_device_code_required(hint: str) -> str:
@@ -68,8 +117,8 @@ def _result_from_table(
 
 class FetchSession:
     """
-    Интерактивная загрузка: при запросе кода браузер не закрывается,
-    UI показывает поле и кнопку «Продолжить».
+    Синхронная загрузка: при запросе кода — DeviceCodeRequired, драйвер остаётся открытым.
+    Для UI предпочтителен FetchJob (фон + прогресс).
     """
 
     def __init__(
@@ -83,6 +132,7 @@ class FetchSession:
         save_raw: bool = False,
         wait_login_seconds: int | None = None,
         session_id: str | None = None,
+        on_progress: Callable[[str, int, int], None] | None = None,
     ) -> None:
         if period_start > period_end:
             raise ValueError("Начало периода должно быть не позже конца.")
@@ -99,6 +149,7 @@ class FetchSession:
         self._save_mssql = save_mssql
         self._save_raw = save_raw
         self._wait_login_seconds = wait_login_seconds
+        self._on_progress = on_progress
         self._driver: WebDriver | None = None
         self.hint: str | None = None
 
@@ -107,7 +158,6 @@ class FetchSession:
         return self._driver is not None and self.hint is not None
 
     def start(self) -> FetchResult:
-        """Старт загрузки. При коде — DeviceCodeRequired (драйвер остаётся открытым)."""
         ensure_data_dirs()
         self._driver = create_driver(self._settings)
         self.hint = None
@@ -124,7 +174,6 @@ class FetchSession:
             return result
 
     def continue_with_code(self, code: str) -> FetchResult:
-        """Ввести код в открытую форму и продолжить загрузку."""
         if self._driver is None:
             raise RuntimeError("Нет активной сессии загрузки. Запустите загрузку снова.")
 
@@ -134,7 +183,6 @@ class FetchSession:
 
         self.hint = None
         try:
-            # Сначала довести вход на текущей странице — иначе get(url) уйдёт с формы кода.
             if confirmation_code_visible(self._driver):
                 submit_confirmation_code(self._driver, code)
                 time.sleep(1)
@@ -167,6 +215,10 @@ class FetchSession:
             except Exception:
                 pass
 
+    def _emit(self, stage: str, current_chunk: int, total_chunks: int) -> None:
+        if self._on_progress:
+            self._on_progress(stage, current_chunk, total_chunks)
+
     def _run_loads(self, *, code_provider: Callable[[str], str]) -> FetchResult:
         assert self._driver is not None
         auth = _auth_provider(
@@ -175,8 +227,14 @@ class FetchSession:
             wait_login_seconds=self._wait_login_seconds,
         )
         chunks = split_period_into_months(self.period_start, self.period_end)
+        total = len(chunks)
 
         if not needs_monthly_chunks(self.period_start, self.period_end):
+            self._emit(
+                f"Загрузка {self.period_start} — {self.period_end}…",
+                1,
+                1,
+            )
             table = _load_and_persist_period(
                 self._driver,
                 auth,
@@ -188,7 +246,12 @@ class FetchSession:
             )
         else:
             table = None
-            for chunk_start, chunk_end in chunks:
+            for index, (chunk_start, chunk_end) in enumerate(chunks, start=1):
+                self._emit(
+                    f"Загрузка {chunk_start} — {chunk_end} (порция {index}/{total})…",
+                    index,
+                    total,
+                )
                 table = _load_and_persist_period(
                     self._driver,
                     auth,
@@ -211,6 +274,227 @@ class FetchSession:
         )
 
 
+class FetchJob:
+    """Фоновая загрузка в отдельном потоке: прогресс, пауза на код, отмена."""
+
+    def __init__(
+        self,
+        settings: Settings,
+        book_id: int,
+        period_start: date,
+        period_end: date,
+        *,
+        save_mssql: bool = True,
+        save_raw: bool = False,
+        wait_login_seconds: int | None = None,
+        job_id: str | None = None,
+    ) -> None:
+        if period_start > period_end:
+            raise ValueError("Начало периода должно быть не позже конца.")
+        if save_mssql and not settings.has_mssql():
+            raise RuntimeError(
+                "MS SQL не настроен. Задайте MSSQL_* в .env или отключите сохранение в БД."
+            )
+
+        self.job_id = job_id or uuid.uuid4().hex
+        self._settings = replace(settings, book_id=book_id)
+        self.book_id = book_id
+        self.period_start = period_start
+        self.period_end = period_end
+        self._save_mssql = save_mssql
+        self._save_raw = save_raw
+        self._wait_login_seconds = wait_login_seconds
+
+        chunks = split_period_into_months(period_start, period_end)
+        total_chunks = len(chunks) if needs_monthly_chunks(period_start, period_end) else 1
+
+        self._lock = threading.Lock()
+        self._progress = FetchProgress(
+            status="idle",
+            stage="Ожидание запуска",
+            book_id=book_id,
+            period_start=period_start,
+            period_end=period_end,
+            current_chunk=0,
+            total_chunks=total_chunks,
+        )
+        self._code_queue: queue.Queue[str | None] = queue.Queue()
+        self._cancel = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._driver: WebDriver | None = None
+
+    def snapshot(self) -> FetchProgress:
+        with self._lock:
+            p = self._progress
+            return FetchProgress(
+                status=p.status,
+                stage=p.stage,
+                book_id=p.book_id,
+                period_start=p.period_start,
+                period_end=p.period_end,
+                current_chunk=p.current_chunk,
+                total_chunks=p.total_chunks,
+                hint=p.hint,
+                error=p.error,
+                result=p.result,
+            )
+
+    def start(self) -> None:
+        if self._thread and self._thread.is_alive():
+            raise RuntimeError("Загрузка уже запущена.")
+        self._update(status="running", stage="Запуск…", error=None, result=None, hint=None)
+        self._thread = threading.Thread(
+            target=self._worker,
+            name=f"fetch-job-{self.job_id[:8]}",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def submit_code(self, code: str) -> None:
+        text = (code or "").strip()
+        if not text:
+            raise ValueError("Введите код подтверждения.")
+        self._code_queue.put(text)
+
+    def cancel(self) -> None:
+        self._cancel.set()
+        try:
+            self._code_queue.put_nowait(None)
+        except queue.Full:
+            pass
+        self._update(status="cancelled", stage="Отмена…")
+
+    def dismiss(self) -> None:
+        """Убрать job из реестра после done/error/cancelled (поток уже завершён)."""
+        with _jobs_lock:
+            _JOBS.pop(self.job_id, None)
+
+    def _update(self, **kwargs) -> None:
+        with self._lock:
+            for key, value in kwargs.items():
+                setattr(self._progress, key, value)
+
+    def _check_cancel(self) -> None:
+        if self._cancel.is_set():
+            raise RuntimeError("Загрузка отменена")
+
+    def _code_provider(self, hint: str) -> str:
+        self._check_cancel()
+        self._update(
+            status="awaiting_code",
+            stage=f"Ожидание кода: {hint}",
+            hint=hint,
+        )
+        code = self._code_queue.get()
+        self._check_cancel()
+        if code is None:
+            raise RuntimeError("Загрузка отменена")
+        self._update(
+            status="running",
+            stage="Проверка кода и продолжение входа…",
+            hint=None,
+        )
+        return code
+
+    def _worker(self) -> None:
+        try:
+            ensure_data_dirs()
+            self._check_cancel()
+            self._update(status="running", stage="Запуск браузера…", current_chunk=0)
+            self._driver = create_driver(self._settings)
+            self._check_cancel()
+
+            self._update(stage="Авторизация (логин / пароль)…")
+            auth = _auth_provider(
+                self._settings,
+                device_code_provider=self._code_provider,
+                wait_login_seconds=self._wait_login_seconds,
+            )
+
+            chunks = split_period_into_months(self.period_start, self.period_end)
+            total = self._progress.total_chunks
+
+            if not needs_monthly_chunks(self.period_start, self.period_end):
+                self._check_cancel()
+                self._update(
+                    status="running",
+                    stage=f"Загрузка таблицы {self.period_start} — {self.period_end}…",
+                    current_chunk=1,
+                    total_chunks=1,
+                )
+                table = _load_and_persist_period(
+                    self._driver,
+                    auth,
+                    self._settings,
+                    self.period_start,
+                    self.period_end,
+                    save_raw=self._save_raw,
+                    save_mssql=self._save_mssql,
+                )
+                self._update(stage="Порция сохранена", current_chunk=1)
+            else:
+                table = None
+                for index, (chunk_start, chunk_end) in enumerate(chunks, start=1):
+                    self._check_cancel()
+                    self._update(
+                        status="running",
+                        stage=(
+                            f"Загрузка {chunk_start} — {chunk_end} "
+                            f"(порция {index}/{total})…"
+                        ),
+                        current_chunk=index,
+                        total_chunks=total,
+                    )
+                    table = _load_and_persist_period(
+                        self._driver,
+                        auth,
+                        self._settings,
+                        chunk_start,
+                        chunk_end,
+                        save_raw=self._save_raw,
+                        save_mssql=self._save_mssql,
+                    )
+                    self._update(
+                        stage=f"Сохранена порция {index}/{total}",
+                        current_chunk=index,
+                    )
+                if table is None:
+                    raise RuntimeError("Не удалось загрузить данные за период.")
+
+            result = _result_from_table(
+                table,
+                book_id=self.book_id,
+                period_start=self.period_start,
+                period_end=self.period_end,
+                save_mssql=self._save_mssql,
+                save_raw=self._save_raw,
+            )
+            if self._cancel.is_set():
+                self._update(status="cancelled", stage="Отменено", result=None)
+            else:
+                self._update(
+                    status="done",
+                    stage="Загрузка завершена",
+                    result=result,
+                    current_chunk=total,
+                    hint=None,
+                    error=None,
+                )
+        except Exception as exc:
+            if self._cancel.is_set() or "отменен" in str(exc).lower():
+                self._update(status="cancelled", stage="Отменено", error=None)
+            else:
+                self._update(status="error", stage="Ошибка загрузки", error=str(exc))
+        finally:
+            driver = self._driver
+            self._driver = None
+            if driver is not None:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+
+
 def register_session(session: FetchSession) -> FetchSession:
     _SESSIONS[session.session_id] = session
     return session
@@ -218,6 +502,23 @@ def register_session(session: FetchSession) -> FetchSession:
 
 def get_session(session_id: str) -> FetchSession | None:
     return _SESSIONS.get(session_id)
+
+
+def register_job(job: FetchJob) -> FetchJob:
+    with _jobs_lock:
+        _JOBS[job.job_id] = job
+    return job
+
+
+def get_job(job_id: str) -> FetchJob | None:
+    with _jobs_lock:
+        return _JOBS.get(job_id)
+
+
+def list_active_jobs() -> list[FetchJob]:
+    with _jobs_lock:
+        jobs = list(_JOBS.values())
+    return [job for job in jobs if job.snapshot().is_active]
 
 
 def fetch_reads_for_period(
@@ -231,12 +532,7 @@ def fetch_reads_for_period(
     wait_login_seconds: int | None = None,
     device_code: str | None = None,
 ) -> FetchResult:
-    """
-    Однократная загрузка (совместимость).
-
-    Если передан device_code — подставляется при запросе сайта.
-    Без кода при запросе сайта — DeviceCodeRequired (драйвер закрывается; для паузы — FetchSession).
-    """
+    """Однократная синхронная загрузка (совместимость)."""
     session = FetchSession(
         settings,
         book_id,
@@ -263,8 +559,7 @@ def fetch_reads_for_period(
             raise
 
     try:
-        result = session.start()
-        return result
+        return session.start()
     except DeviceCodeRequired:
         session.close()
         raise
