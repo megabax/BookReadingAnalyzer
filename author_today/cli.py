@@ -10,6 +10,7 @@ from pathlib import Path
 
 from selenium.common.exceptions import TimeoutException
 
+from author_today.errors import AuthorTodayError
 from author_today.pipeline.sync_reads import sync_reads, sync_reads_by_period
 from config.settings import Settings
 
@@ -128,6 +129,12 @@ def main() -> int:
                 save_mssql=save_mssql,
             )
         return 0
+    except AuthorTodayError as e:
+        print(f"Ошибка: {e}", file=sys.stderr)
+        if not settings.headless:
+            print("Браузер: пауза 30 с для проверки...", file=sys.stderr)
+            time.sleep(30)
+        return 1
     except (TimeoutException, RuntimeError, NotImplementedError) as e:
         print(f"Ошибка: {e}", file=sys.stderr)
         if not settings.headless:

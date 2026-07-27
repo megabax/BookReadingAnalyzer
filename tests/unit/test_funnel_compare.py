@@ -12,6 +12,7 @@ from author_today.analyze.funnel_compare import (
     daily_matrix_from_json,
     save_funnel_compare_csv,
 )
+from author_today.errors import DataNotFoundError
 
 DailyMatrix = dict[date, dict[int, tuple[str, int]]]
 
@@ -114,7 +115,7 @@ def test_compare_from_json_fixture(minimal_snapshot_path: Path):
 
 def test_missing_baseline_raises():
     matrix = _matrix([_day("2025-07-01", 100, 50)])
-    with pytest.raises(ValueError, match="chapter_order=99"):
+    with pytest.raises(DataNotFoundError, match="chapter_order=99"):
         compare_funnel_periods(
             matrix,
             matrix,

@@ -448,8 +448,10 @@ class MssqlReadRepository:
 
 def create_mssql_repository(settings: Settings) -> MssqlReadRepository:
     """Создать MSSQL-репозиторий. Для кода приложения предпочтительно `get_repository()`."""
+    from author_today.errors import ConfigError
+
     if not settings.has_mssql():
-        raise RuntimeError(
+        raise ConfigError(
             "MS SQL не настроен. Укажите MSSQL_CONNECTION_STRING или MSSQL_SERVER + MSSQL_DATABASE в .env"
         )
     return MssqlReadRepository(settings)

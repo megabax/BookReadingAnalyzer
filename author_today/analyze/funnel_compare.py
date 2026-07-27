@@ -11,6 +11,7 @@ from author_today.analyze.chapter_filters import is_book_page
 from author_today.analyze.formatting import fmt_decimal_ru, fmt_pvalue, pct
 from author_today.analyze.hypothesis_tests import mean_and_sigma, welch_ttest_pvalue
 from author_today.domain.models import DailyMatrix, ReadSnapshot
+from author_today.errors import DataNotFoundError
 from author_today.storage.factory import get_repository
 from config.settings import Settings
 
@@ -121,7 +122,7 @@ def compare_funnel_periods(
     if baseline_chapter_order not in series_a and baseline_chapter_order not in series_b:
         orders_a = ", ".join(str(k) for k in series_a) or "—"
         orders_b = ", ".join(str(k) for k in series_b) or "—"
-        raise ValueError(
+        raise DataNotFoundError(
             f"Базовая глава chapter_order={baseline_chapter_order} не найдена "
             f"ни в одном периоде (A: {orders_a}; B: {orders_b})."
         )

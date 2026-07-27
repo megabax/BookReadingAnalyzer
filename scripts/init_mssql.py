@@ -6,6 +6,7 @@
 
 import sys
 
+from author_today.errors import AuthorTodayError
 from author_today.storage.factory import get_repository
 from config.settings import Settings
 
@@ -15,8 +16,12 @@ def main() -> int:
     if not settings.has_mssql():
         print("Ошибка: задайте параметры MS SQL в .env (см. .env.example)", file=sys.stderr)
         return 1
-    repo = get_repository(settings)
-    repo.ensure_schema()
+    try:
+        repo = get_repository(settings)
+        repo.ensure_schema()
+    except AuthorTodayError as exc:
+        print(f"Ошибка: {exc}", file=sys.stderr)
+        return 1
     print("Таблицы dbo.fetch_runs и dbo.chapter_reads готовы.")
     return 0
 

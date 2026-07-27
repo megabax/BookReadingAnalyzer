@@ -15,6 +15,7 @@ from author_today.analyze.funnel import (
     save_funnel_csv,
 )
 from author_today.domain.models import ReadSnapshot
+from author_today.errors import DataNotFoundError
 
 
 def test_build_funnel_basic():
@@ -61,7 +62,7 @@ def test_build_funnel_base_order():
 
 def test_build_funnel_missing_base_raises():
     rows = [(2, "Глава 1", 80)]
-    with pytest.raises(ValueError, match="chapter_order=99"):
+    with pytest.raises(DataNotFoundError, match="chapter_order=99"):
         build_funnel(rows, baseline_chapter_order=99)
 
 

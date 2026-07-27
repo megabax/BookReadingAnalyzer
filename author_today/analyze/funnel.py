@@ -10,6 +10,7 @@ from pathlib import Path
 from author_today.analyze.chapter_filters import filter_chapter_rows
 from author_today.analyze.formatting import fmt_decimal_ru, pct, pct_column_label
 from author_today.domain.models import ReadSnapshot
+from author_today.errors import DataNotFoundError
 from author_today.storage.factory import get_repository
 from config.settings import Settings
 
@@ -59,7 +60,7 @@ def build_funnel(
         )
         if baseline_views is None:
             available = ", ".join(str(order) for order, _n, _v in filtered)
-            raise ValueError(
+            raise DataNotFoundError(
                 f"Глава с chapter_order={baseline_chapter_order} не найдена. "
                 f"Доступные порядки: {available}"
             )

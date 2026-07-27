@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from collections.abc import Iterator
+
 import pyodbc
 
+from author_today.errors import StorageError
 from config.settings import Settings
 
 
@@ -24,5 +28,23 @@ def build_connection_string(settings: Settings) -> str:
     return ";".join(parts)
 
 
-def connect(settings: Settings) -> pyodbc.Connection:
-    return pyodbc.connect(build_connection_string(settings), autocommit=False)
+@contextmanager
+def connect(settings: Settings) -> Iterator[pyodbc.Connection]:
+    """Открыть соединение; pyodbc.Error → StorageError."""
+    try:
+        conn = pyodbc.connect(build_connection_string(settings), autocommit=False)
+    except pyodbc.Error as exc:
+        raise StorageError(
+            "Не удалось подключиться к MS SQL. Проверьте MSSQL_* в .env и что сервер запущен."
+        ) from exc
+    try:
+        yield conn
+    except pyodbc.Error as exc:
+        raise StorageError(
+            "Ошибка при работе с MS SQL. Проверьте схему БД, права доступа и логи сервера."
+        ) from exc
+    finally:
+        try:
+            conn.close()
+        except pyodbc.Error:
+            pass

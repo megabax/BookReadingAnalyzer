@@ -15,6 +15,7 @@ from author_today.analyze.funnel_compare import (
     daily_matrix_from_snapshot,
 )
 from author_today.domain.models import ReadSnapshot
+from author_today.errors import ConfigError
 from author_today.storage.factory import get_repository
 from config.settings import RAW_DIR, Settings
 
@@ -32,7 +33,7 @@ def list_raw_snapshots(*, book_id: int | None = None) -> list[Path]:
 
 def _require_mssql(settings: Settings) -> None:
     if not settings.has_mssql():
-        raise RuntimeError(
+        raise ConfigError(
             "Отчёты строятся из MS SQL. Настройте MSSQL_* или MSSQL_CONNECTION_STRING в .env"
         )
 
@@ -61,7 +62,7 @@ def load_funnel_steps(
 ) -> list[FunnelStep]:
     if json_path is not None:
         if not settings.enable_legacy_json:
-            raise RuntimeError(
+            raise ConfigError(
                 "JSON отключён (источник правды — MS SQL). "
                 "Для отладки задайте AT_ENABLE_LEGACY_JSON=yes"
             )
@@ -90,12 +91,12 @@ def load_funnel_compare(
 ) -> FunnelCompareReport:
     if json_path_a or json_path_b:
         if not settings.enable_legacy_json:
-            raise RuntimeError(
+            raise ConfigError(
                 "JSON отключён (источник правды — MS SQL). "
                 "Для отладки задайте AT_ENABLE_LEGACY_JSON=yes"
             )
         if not (json_path_a and json_path_b):
-            raise RuntimeError("Укажите оба json_path_a и json_path_b")
+            raise ConfigError("Укажите оба json_path_a и json_path_b")
         matrix_a = daily_matrix_from_snapshot(ReadSnapshot.from_json(json_path_a))
         matrix_b = daily_matrix_from_snapshot(ReadSnapshot.from_json(json_path_b))
     else:

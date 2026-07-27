@@ -16,7 +16,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from author_today.auth.login_flow import confirmation_code_visible, submit_confirmation_code
 from author_today.browser.factory import create_driver
 from author_today.domain.models import StatsTable, parse_dd_mm_columns
-from author_today.errors import DeviceCodeRequired
+from author_today.errors import ConfigError, DeviceCodeRequired
 from author_today.fetch.periods import needs_monthly_chunks, split_period_into_months
 from author_today.pipeline.sync_reads import _auth_provider, _load_and_persist_period
 from config.settings import Settings, ensure_data_dirs
@@ -137,7 +137,7 @@ class FetchSession:
         if period_start > period_end:
             raise ValueError("Начало периода должно быть не позже конца.")
         if save_mssql and not settings.has_mssql():
-            raise RuntimeError(
+            raise ConfigError(
                 "MS SQL не настроен. Задайте MSSQL_* в .env или отключите сохранение в БД."
             )
 
@@ -292,7 +292,7 @@ class FetchJob:
         if period_start > period_end:
             raise ValueError("Начало периода должно быть не позже конца.")
         if save_mssql and not settings.has_mssql():
-            raise RuntimeError(
+            raise ConfigError(
                 "MS SQL не настроен. Задайте MSSQL_* в .env или отключите сохранение в БД."
             )
 

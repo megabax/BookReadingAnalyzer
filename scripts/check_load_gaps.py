@@ -20,6 +20,7 @@ from author_today.storage.load_gaps import (
     format_date_ranges,
     iter_period_days,
 )
+from author_today.errors import AuthorTodayError
 from author_today.storage.factory import get_repository
 from author_today.storage.mssql_repo import RunDateCoverage
 from config.settings import Settings
@@ -117,8 +118,12 @@ def main() -> int:
         print("Ошибка: MS SQL не настроен в .env", file=sys.stderr)
         return 1
 
-    repo = get_repository(settings)
-    coverage = repo.list_run_date_coverage(book_id=args.book_id)
+    try:
+        repo = get_repository(settings)
+        coverage = repo.list_run_date_coverage(book_id=args.book_id)
+    except AuthorTodayError as exc:
+        print(f"Ошибка: {exc}", file=sys.stderr)
+        return 1
     reports = _build_reports(coverage)
 
     if args.json:

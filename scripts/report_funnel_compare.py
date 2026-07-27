@@ -28,6 +28,7 @@ from author_today.cli_common import (
     require_mssql,
     resolve_book_id,
 )
+from author_today.errors import AuthorTodayError
 from config.settings import Settings
 
 
@@ -113,7 +114,7 @@ def main() -> int:
             period_b_end=period_b_end,
         )
         print_funnel_compare(report)
-    except ValueError as e:
+    except (AuthorTodayError, ValueError) as e:
         print_error(e)
         return 1
 

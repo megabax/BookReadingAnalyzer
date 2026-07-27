@@ -10,6 +10,7 @@ import argparse
 import sys
 from datetime import date, datetime
 
+from author_today.errors import AuthorTodayError
 from author_today.storage.factory import get_repository
 from config.settings import Settings
 
@@ -104,9 +105,9 @@ def main() -> int:
         print("Ошибка: MS SQL не настроен в .env", file=sys.stderr)
         return 1
 
-    repo = get_repository(settings)
-
     try:
+        repo = get_repository(settings)
+
         if args.filter == "fetched-at":
             if not args.fetched_from or not args.fetched_to:
                 raise ValueError("Для --filter fetched-at укажите --fetched-from и --fetched-to")
@@ -129,7 +130,7 @@ def main() -> int:
             preview = repo.preview_delete_runs_by_period(book_id, period_start, period_end)
             filter_desc = f"period {period_start} .. {period_end}"
             delete = lambda: repo.delete_runs_by_period(book_id, period_start, period_end)
-    except ValueError as e:
+    except (AuthorTodayError, ValueError) as e:
         print(f"Ошибка: {e}", file=sys.stderr)
         return 1
 
@@ -152,7 +153,11 @@ def main() -> int:
             print("Отменено.")
             return 0
 
-    result = delete()
+    try:
+        result = delete()
+    except AuthorTodayError as e:
+        print(f"Ошибка: {e}", file=sys.stderr)
+        return 1
     print(f"Удалено chapter_reads: {result.deleted_reads}")
     print(f"Удалено fetch_runs: {result.deleted_runs}")
     return 0

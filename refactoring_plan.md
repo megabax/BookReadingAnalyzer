@@ -119,18 +119,19 @@ pytest + фикстуры; `stats_test.py` переименован в `hypothes
 
 ---
 
-### 10. Единообразная обработка ошибок
+### 10. Единообразная обработка ошибок ✅ (2026-07)
+
+**Сделано:**
+- иерархия в `author_today/errors.py`: `ConfigError`, `DataNotFoundError`, `AuthError`, `StorageError`, `DeviceCodeRequired`
+- `pyodbc.Error` → `StorageError` в `storage/mssql/connection.py`
+- CLI / scripts / UI ловят `AuthorTodayError` (плюс `ValueError` для валидации аргументов)
 
 | Точка входа | Ловит |
 |-------------|-------|
-| `author_today/cli.py` | `TimeoutException`, `RuntimeError`, `NotImplementedError` |
-| `scripts/report_funnel*.py` | только `ValueError` |
-| `scripts/delete_runs.py` | `ValueError` для дат |
-| `scripts/init_mssql.py` | ничего |
-
-Ошибки `pyodbc` в скриптах — сырой traceback.
-
-**Рекомендация:** `author_today/errors.py` (`ConfigError`, `DataNotFoundError`, `AuthError`); на границе storage — `pyodbc.Error` → доменные исключения.
+| `author_today/cli.py` | `AuthorTodayError`, затем Selenium/прочие |
+| `scripts/report_funnel*.py` | `AuthorTodayError`, `ValueError` |
+| `scripts/delete_runs.py` / `init_mssql.py` / `check_load_gaps.py` | `AuthorTodayError` |
+| Streamlit funnel/compare | `AuthorTodayError` |
 
 ---
 

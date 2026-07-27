@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 import streamlit as st
 
+from author_today.errors import AuthorTodayError
 from author_today.services.books import load_book_catalog
 from author_today.ui.base import Page
 from author_today.ui.cache import ReportCache
@@ -123,7 +124,7 @@ class ComparePage(Page):
                     baseline_chapter_order=base_order,
                     skip_book_page=skip_book_page,
                 )
-        except ValueError as exc:
+        except AuthorTodayError as exc:
             st.error(str(exc))
             return
         except Exception as exc:

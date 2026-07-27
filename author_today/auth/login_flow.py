@@ -11,6 +11,8 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+from author_today.errors import AuthError
+
 DEVICE_CONFIRM_MARKER = "Подтверждение входа с нового устройства"
 TWO_FACTOR_MARKER = "Двухфакторная аутентификация"
 
@@ -89,27 +91,27 @@ def submit_login_form(driver: WebDriver, login: str, password: str) -> None:
     login_input = _visible_login_input(driver)
     password_input = _visible_password_input(driver)
     if not login_input or not password_input:
-        raise RuntimeError("Форма входа не найдена на странице.")
+        raise AuthError("Форма входа не найдена на странице.")
 
     _type_input(login_input, login)
     _type_input(password_input, password)
 
     submit = _visible_submit_button(driver)
     if not submit:
-        raise RuntimeError("Кнопка «Войти» не найдена.")
+        raise AuthError("Кнопка «Войти» не найдена.")
     submit.click()
 
 
 def submit_confirmation_code(driver: WebDriver, code: str) -> None:
     code_input = _visible_code_input(driver)
     if not code_input:
-        raise RuntimeError("Поле кода подтверждения не найдено.")
+        raise AuthError("Поле кода подтверждения не найдено.")
 
     _type_input(code_input, code)
 
     submit = _visible_submit_button(driver)
     if not submit:
-        raise RuntimeError("Кнопка подтверждения не найдена.")
+        raise AuthError("Кнопка подтверждения не найдена.")
     submit.click()
 
 
@@ -177,13 +179,13 @@ def perform_login(
         if confirmation_code_visible(driver):
             code = prompt_confirmation_code(driver, code_provider)
             if not code:
-                raise RuntimeError("Код подтверждения не введён.")
+                raise AuthError("Код подтверждения не введён.")
             submit_confirmation_code(driver, code)
             time.sleep(1)
             continue
 
         if login_form_visible(driver):
-            raise RuntimeError(
+            raise AuthError(
                 "Авторизация не удалась. Проверьте AT_EMAIL и AT_PASSWORD в .env"
             )
 
@@ -192,7 +194,7 @@ def perform_login(
     try:
         wait_until_authenticated(driver, 5)
     except TimeoutException as exc:
-        raise TimeoutException(
+        raise AuthError(
             f"Не удалось завершить вход за {auth_timeout} с. "
             "Возможно, требуется код подтверждения или капча."
         ) from exc

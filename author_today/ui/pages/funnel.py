@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from author_today.analyze.formatting import pct_column_label
+from author_today.errors import AuthorTodayError
 from author_today.services.books import load_book_catalog
 from author_today.ui.base import Page
 from author_today.ui.cache import ReportCache
@@ -108,7 +109,7 @@ class FunnelPage(Page):
                     skip_book_page=skip_book_page,
                     baseline_chapter_order=baseline_chapter_order,
                 )
-        except ValueError as exc:
+        except AuthorTodayError as exc:
             st.error(str(exc))
             return
         except Exception as exc:
