@@ -6,7 +6,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from author_today.storage.mssql_repo import BookLoadInfo, create_mssql_repository
+from author_today.storage.factory import get_repository
+from author_today.storage.mssql_repo import BookLoadInfo
 from config.settings import ROOT_DIR, Settings
 
 BOOKS_YAML_PATH = ROOT_DIR / "config" / "books.yaml"
@@ -75,7 +76,7 @@ def load_book_catalog(settings: Settings | None = None) -> list[BookOption]:
         )
 
     if settings is not None and settings.has_mssql():
-        repo = create_mssql_repository(settings)
+        repo = get_repository(settings)
         for row in repo.list_books():
             book_id = int(row["id"])
             db_title = row.get("title")
@@ -102,4 +103,4 @@ def load_book_data_info(settings: Settings, book_id: int, *, limit: int = 50) ->
     """Периоды загрузок и покрытие read_date в БД для книги."""
     if not settings.has_mssql():
         return None
-    return create_mssql_repository(settings).get_book_load_info(book_id, limit=limit)
+    return get_repository(settings).get_book_load_info(book_id, limit=limit)

@@ -11,7 +11,7 @@ from author_today.analyze.chapter_filters import is_book_page
 from author_today.analyze.formatting import fmt_decimal_ru, fmt_pvalue, pct
 from author_today.analyze.hypothesis_tests import mean_and_sigma, welch_ttest_pvalue
 from author_today.domain.models import DailyMatrix, ReadSnapshot
-from author_today.storage.mssql_repo import create_mssql_repository
+from author_today.storage.factory import get_repository
 from config.settings import Settings
 
 
@@ -184,7 +184,7 @@ def daily_matrix_from_mssql(
     period_start: date,
     period_end: date,
 ) -> DailyMatrix:
-    snapshot = create_mssql_repository(settings).load_snapshot(
+    snapshot = get_repository(settings).load_snapshot(
         book_id, period_start, period_end
     )
     return daily_matrix_from_snapshot(snapshot)

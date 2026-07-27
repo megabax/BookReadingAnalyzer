@@ -10,7 +10,7 @@ import argparse
 import sys
 from datetime import date, datetime
 
-from author_today.storage.mssql_repo import create_mssql_repository
+from author_today.storage.factory import get_repository
 from config.settings import Settings
 
 
@@ -104,7 +104,7 @@ def main() -> int:
         print("Ошибка: MS SQL не настроен в .env", file=sys.stderr)
         return 1
 
-    repo = create_mssql_repository(settings)
+    repo = get_repository(settings)
 
     try:
         if args.filter == "fetched-at":

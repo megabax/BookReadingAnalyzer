@@ -10,7 +10,7 @@ from pathlib import Path
 from author_today.analyze.chapter_filters import filter_chapter_rows
 from author_today.analyze.formatting import fmt_decimal_ru, pct, pct_column_label
 from author_today.domain.models import ReadSnapshot
-from author_today.storage.mssql_repo import create_mssql_repository
+from author_today.storage.factory import get_repository
 from config.settings import Settings
 
 
@@ -123,7 +123,7 @@ def funnel_from_mssql(
     skip_book_page: bool = False,
     baseline_chapter_order: int | None = None,
 ) -> list[FunnelStep]:
-    snapshot = create_mssql_repository(settings).load_snapshot(
+    snapshot = get_repository(settings).load_snapshot(
         book_id, period_start, period_end
     )
     return funnel_from_snapshot(

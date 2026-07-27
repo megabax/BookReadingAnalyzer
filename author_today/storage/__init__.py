@@ -1,5 +1,6 @@
 from author_today.storage.base import ReadRepository
 from author_today.storage.export import print_table, save_csv, save_json, save_snapshot_raw
+from author_today.storage.factory import get_repository
 from author_today.storage.mssql_repo import (
     DeleteRunsPreview,
     DeleteRunsResult,
@@ -13,6 +14,7 @@ __all__ = [
     "MssqlReadRepository",
     "DeleteRunsPreview",
     "DeleteRunsResult",
+    "get_repository",
     "create_mssql_repository",
     "persist_snapshot",
     "print_table",

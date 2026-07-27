@@ -60,7 +60,7 @@ class RunDateCoverage:
 
 
 class MssqlReadRepository:
-    """Сохранение снимков прочтений в MS SQL Server."""
+    """Сохранение снимков прочтений в MS SQL Server (реализует ReadRepository)."""
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -447,6 +447,7 @@ class MssqlReadRepository:
 
 
 def create_mssql_repository(settings: Settings) -> MssqlReadRepository:
+    """Создать MSSQL-репозиторий. Для кода приложения предпочтительно `get_repository()`."""
     if not settings.has_mssql():
         raise RuntimeError(
             "MS SQL не настроен. Укажите MSSQL_CONNECTION_STRING или MSSQL_SERVER + MSSQL_DATABASE в .env"

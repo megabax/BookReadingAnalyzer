@@ -15,7 +15,7 @@ from author_today.analyze.funnel_compare import (
     daily_matrix_from_snapshot,
 )
 from author_today.domain.models import ReadSnapshot
-from author_today.storage.mssql_repo import create_mssql_repository
+from author_today.storage.factory import get_repository
 from config.settings import RAW_DIR, Settings
 
 
@@ -44,7 +44,7 @@ def load_read_snapshot(
     period_end: date,
 ) -> ReadSnapshot:
     _require_mssql(settings)
-    return create_mssql_repository(settings).load_snapshot(
+    return get_repository(settings).load_snapshot(
         book_id, period_start, period_end
     )
 

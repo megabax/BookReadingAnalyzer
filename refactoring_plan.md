@@ -107,14 +107,15 @@ pytest + фикстуры; `stats_test.py` переименован в `hypothes
 **Опционально позже:** `snapshot_loaders.py` (JSON/MSSQL → snapshot уже тонкие обёртки).
 ---
 
-### 9. `ReadRepository` — использовать или убрать
+### 9. `ReadRepository` — использовать или убрать ✅ (2026-07)
 
-- Protocol в `author_today/storage/base.py`
-- `MssqlReadRepository` не объявляет реализацию; `list_runs` с `limit` не в Protocol
-- `SqliteReadRepository` — удалён (2026-07); источник правды — MS SQL
-- `persist.py` вызывает `create_mssql_repository()` напрямую
+**Сделано (вариант A):**
+- Protocol `ReadRepository` расширен до публичного API storage
+- фабрика `get_repository(settings)` в `author_today/storage/factory.py`
+- callers (persist, services, analyze, scripts) используют `get_repository`
+- `create_mssql_repository` остаётся низкоуровневой фабрикой MSSQL; новая СУБД — новая ветка в `get_repository`
 
-**Рекомендация:** фабрика `get_repository(settings)` через Protocol, либо удалить Protocol/SQLite до реальной необходимости.
+**Не в scope:** вторая реализация БД (появится при миграции).
 
 ---
 
