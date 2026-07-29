@@ -71,7 +71,7 @@ MS SQL A/B ► load_snapshot() ──► daily_matrix() ──► compare_funnel
 ## Конфигурация
 
 - `config/settings.py` — `.env`, `book_id`, MSSQL, таймауты
-- `config/books.yaml` — **не подключён** к коду
+- `config/settings.py` — env / пути данных
 
 ## Точки входа
 

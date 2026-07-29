@@ -80,8 +80,8 @@
 |----------|-----|
 | SQL в analyze и delete_runs, не в repo | см. refactoring_plan §2 |
 | ~~`stats_test.py`~~ → `hypothesis_tests.py` | analyze/ ✅ |
-| `books.yaml` не читается | config/ |
-| `ReadRepository` не используется единообразно | storage/ |
+| ~~`books.yaml`~~ удалён; каталог из `dbo.books` | services/books.py ✅ |
+| ~~`ReadRepository`~~ → `get_repository` | storage/ ✅ |
 | ~~`scripts/report.py`~~ удалён | — |
 | Unit-тесты есть (`pytest`); editable-install через `pyproject.toml` | — |
 

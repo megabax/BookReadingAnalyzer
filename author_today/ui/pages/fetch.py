@@ -139,8 +139,6 @@ class FetchPage(Page):
                         {
                             "book_id": book.book_id,
                             "title": book.title or "",
-                            "в БД": "да" if book.in_database else "",
-                            "в books.yaml": "да" if book.in_yaml else "",
                         }
                         for book in catalog
                     ],

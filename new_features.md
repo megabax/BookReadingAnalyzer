@@ -40,7 +40,7 @@ A / B / C или «этот месяц vs средний за N месяцев»
 
 ### 7. Несколько книг рядом
 
-Одна метрика (дочитывание / μ) по портфелю из `config/books.yaml`.
+Одна метрика (дочитывание / μ) по портфелю книг из `dbo.books`.
 
 ### 8. Алерты
 
@@ -89,5 +89,5 @@ A / B / C или «этот месяц vs средний за N месяцев»
 | Покрытие / gaps | `scripts/check_load_gaps.py`, `storage/load_gaps.py` |
 | Автозагрузка | `selenium_stats.py` / `author_today.cli`, `FetchJob` |
 | Multi-month merge | `pipeline/sync_reads.py`, ADR-005 |
-| Портфель книг | `config/books.yaml`, `services/books.py` |
+| Портфель книг | `dbo.books`, `services/books.py` |
 | Пресеты / заметки | новый слой рядом с `services/` + UI |

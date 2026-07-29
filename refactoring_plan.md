@@ -22,7 +22,7 @@
 | CLI | `book_id` (+ alias) | `--book-id` везде; `--work-id` — устаревший alias с предупреждением |
 | URL сайта | `workId` | `author_today/fetch/stats_url.py` (`build_stats_url(book_id=...)`) |
 
-**Сделано:** `cli.py`, `delete_runs.py`, `stats_url.py`, `.env.example` (`AT_BOOK_ID`), `books.yaml`, README, glossary, data_contracts. См. ADR-001 в [`docs/decisions.md`](docs/decisions.md).
+**Сделано:** `cli.py`, `delete_runs.py`, `stats_url.py`, `.env.example` (`AT_BOOK_ID`), README, glossary, data_contracts. См. ADR-001 в [`docs/decisions.md`](docs/decisions.md).
 
 **Не в scope:** переименование колонки SQL (ADR-010).
 
@@ -137,10 +137,10 @@ pytest + фикстуры; `stats_test.py` переименован в `hypothes
 
 ### 11. Неиспользуемая конфигурация и пути
 
-- `config/books.yaml` — `work_id` + `title`, нигде не загружается
-- `data/reports` захардкожен в `funnel.py` и `report_funnel_compare.py`; в `settings.py` есть `DATA_DIR` / `RAW_DIR`, но нет `REPORTS_DIR`
+- ~~`config/books.yaml`~~ — удалён (2026-07); каталог книг только из `dbo.books`
+- `data/reports` захардкожен в `funnel.py` и `report_funnel_compare.py`; в `settings.py` уже есть `REPORTS_DIR`
 
-**Рекомендация:** подключить `books.yaml` в settings или удалить файл; добавить `REPORTS_DIR = DATA_DIR / "reports"`.
+**Рекомендация:** подключить `REPORTS_DIR` в скриптах вместо `Path("data/reports")`; убрать хвосты `DB_PATH` / SQLite.
 
 ---
 
@@ -270,6 +270,6 @@ flowchart TD
 | Analyze | `author_today/analyze/funnel.py`, `funnel_compare.py`, `hypothesis_tests.py`, `formatting.py`, `chapter_filters.py` |
 | Storage | `author_today/storage/mssql_repo.py`, `persist.py`, `mssql/schema.sql` |
 | Scripts | `scripts/report_funnel.py`, `report_funnel_compare.py`, `delete_runs.py` |
-| Config | `config/settings.py`, `books.yaml` |
+| Config | `config/settings.py` |
 | UI | `streamlit_app.py`, `author_today/services/`, `docs/ui_streamlit.md` |
 | Tests | `tests/` (pytest) |

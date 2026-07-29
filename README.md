@@ -17,7 +17,7 @@ author_today/             # основной пакет
   services/              # слой для Streamlit (reports, fetch, books)
   cli.py / cli_common.py # CLI загрузки и общие argparse-хелперы
 
-config/                  # settings, books.yaml
+config/                  # settings
 scripts/                 # fetch_reads, report_funnel*, delete_runs, init_mssql, …
 data/raw/                # legacy JSON-снимки (опционально)
 data/reports/            # CSV отчётов

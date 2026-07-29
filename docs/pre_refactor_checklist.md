@@ -49,7 +49,7 @@
 - [x] Прочитан ADR-001
 - [x] `--book-id` везде; `--work-id` с предупреждением deprecation
 - [x] README и glossary согласованы
-- [x] `AT_BOOK_ID` в `.env.example`, `books.yaml` → `book_id`
+- [x] `AT_BOOK_ID` в `.env.example`
 
 ---
 

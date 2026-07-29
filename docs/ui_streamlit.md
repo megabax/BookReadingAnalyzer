@@ -83,7 +83,7 @@ author_today/domain/      ← ReadSnapshot (после §3)
 ### Этап B — удобство
 
 - Скачать CSV из UI (`save_funnel_csv` / `save_funnel_compare_csv`)
-- Выбор книги из `config/books.yaml` (когда файл подключат в settings)
+- Выбор книги из `dbo.books` (каталог после загрузок в MS SQL)
 - `st.cache_data` на тяжёлые запросы к БД
 
 ### Этап C — загрузка с сайта ✅

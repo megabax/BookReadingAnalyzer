@@ -30,7 +30,6 @@ exclude = ["tests*", "legacy*", "scripts*"]
 
 [tool.setuptools.package-data]
 author_today = ["storage/mssql/*.sql"]
-config = ["*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
