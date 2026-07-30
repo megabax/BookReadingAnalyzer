@@ -13,5 +13,6 @@
 | [testing_strategy.md](testing_strategy.md) | Что и как тестировать до/во время рефакторинга |
 | [pre_refactor_checklist.md](pre_refactor_checklist.md) | Чеклист перед каждой фазой |
 | [ui_streamlit.md](ui_streamlit.md) | Веб-интерфейс: Streamlit, экраны, установка |
+| [metrics_value_types.md](metrics_value_types.md) | Архитектура метрик hit / time / avgTime (ещё не внедрено) |
 
 **Порядок чтения:** glossary → architecture_baseline → data_contracts → known_issues → decisions → testing_strategy.

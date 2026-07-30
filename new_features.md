@@ -40,8 +40,13 @@ A / B / C или «этот месяц vs средний за N месяцев»
 В UI: выбор книги и главы (по умолчанию последняя), skip «Страница книги» и база как у воронки.
 Модуль: `analyze/completion_trend.py`, вкладка «Тренд дочитывания».
 
-### 7. Несколько книг рядом
+### 6a. Нужно грузить и другие метрики (time, avgTime)
 
+Сейчас в БД только `valueType=hit` (просмотры). Имеет смысл догрузить **время чтения** и **среднее время** — с отдельным типом на `fetch_runs`, без порчи уже загруженного hit.
+
+Архитектура и порядок внедрения: [docs/metrics_value_types.md](docs/metrics_value_types.md).
+
+### 7. Несколько книг рядом
 Одна метрика (дочитывание / μ) по портфелю книг из `dbo.books`.
 
 ### 8. Алерты
@@ -93,3 +98,4 @@ A / B / C или «этот месяц vs средний за N месяцев»
 | Multi-month merge | `pipeline/sync_reads.py`, ADR-005 |
 | Портфель книг | `dbo.books`, `services/books.py` |
 | Пресеты / заметки | новый слой рядом с `services/` + UI |
+| Метрики time / avgTime | [docs/metrics_value_types.md](docs/metrics_value_types.md), `AT_VALUE_TYPE` |
