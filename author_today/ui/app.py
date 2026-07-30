@@ -13,6 +13,7 @@ from author_today.ui.components.sidebar import DataSourceSidebar
 from author_today.ui.pages.compare import ComparePage
 from author_today.ui.pages.fetch import FetchPage
 from author_today.ui.pages.funnel import FunnelPage
+from author_today.ui.pages.trend import TrendPage
 from config.settings import Settings
 
 
@@ -42,6 +43,7 @@ class StreamlitApp:
         return [
             FunnelPage(settings, book_picker, cache),
             ComparePage(settings, book_picker, cache),
+            TrendPage(settings, book_picker, cache),
             FetchPage(settings, book_picker, load_info),
         ]
 

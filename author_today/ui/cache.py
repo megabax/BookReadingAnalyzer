@@ -6,9 +6,15 @@ from datetime import date
 
 import streamlit as st
 
+from author_today.analyze.completion_trend import CompletionTrendReport
 from author_today.analyze.funnel import FunnelStep
 from author_today.analyze.funnel_compare import FunnelCompareReport
-from author_today.services.reports import load_funnel_compare, load_funnel_steps
+from author_today.services.reports import (
+    load_chapter_options,
+    load_completion_trend,
+    load_funnel_compare,
+    load_funnel_steps,
+)
 from config.settings import Settings
 
 # Settings нехешируем для st.cache_data — привязка через ReportCache.bind().
@@ -69,6 +75,44 @@ def _cached_funnel_compare(
     )
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def _cached_chapter_options(
+    _cache_key: str,
+    book_id: int,
+    period_start: date,
+    period_end: date,
+    skip_book_page: bool,
+) -> list[tuple[int, str]]:
+    return load_chapter_options(
+        _require_settings(),
+        book_id,
+        period_start,
+        period_end,
+        skip_book_page=skip_book_page,
+    )
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _cached_completion_trend(
+    _cache_key: str,
+    book_id: int,
+    period_start: date,
+    period_end: date,
+    target_chapter_order: int | None,
+    skip_book_page: bool,
+    baseline_chapter_order: int | None,
+) -> CompletionTrendReport:
+    return load_completion_trend(
+        _require_settings(),
+        book_id,
+        period_start,
+        period_end,
+        target_chapter_order=target_chapter_order,
+        skip_book_page=skip_book_page,
+        baseline_chapter_order=baseline_chapter_order,
+    )
+
+
 class ReportCache:
     """Фасад над st.cache_data: страницы зависят от этого класса, не от декораторов (DIP)."""
 
@@ -117,12 +161,53 @@ class ReportCache:
             skip_book_page,
         )
 
+    def chapter_options(
+        self,
+        book_id: int,
+        period_start: date,
+        period_end: date,
+        *,
+        skip_book_page: bool,
+    ) -> list[tuple[int, str]]:
+        return _cached_chapter_options(
+            mssql_cache_key(self._settings),
+            book_id,
+            period_start,
+            period_end,
+            skip_book_page,
+        )
+
+    def completion_trend(
+        self,
+        book_id: int,
+        period_start: date,
+        period_end: date,
+        *,
+        target_chapter_order: int | None,
+        skip_book_page: bool,
+        baseline_chapter_order: int | None,
+    ) -> CompletionTrendReport:
+        return _cached_completion_trend(
+            mssql_cache_key(self._settings),
+            book_id,
+            period_start,
+            period_end,
+            target_chapter_order,
+            skip_book_page,
+            baseline_chapter_order,
+        )
+
     def clear_funnel(self) -> None:
         _cached_funnel_steps.clear()
 
     def clear_compare(self) -> None:
         _cached_funnel_compare.clear()
 
+    def clear_trend(self) -> None:
+        _cached_chapter_options.clear()
+        _cached_completion_trend.clear()
+
     def clear_all(self) -> None:
         self.clear_funnel()
         self.clear_compare()
+        self.clear_trend()

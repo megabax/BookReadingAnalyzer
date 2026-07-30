@@ -55,7 +55,7 @@ streamlit_app.py          ← страницы, виджеты, кэш st.cache_
 author_today/services/    ← оркестрация (reports.py)
         │
         ▼
-author_today/analyze/     ← funnel, funnel_compare
+author_today/analyze/     ← funnel, funnel_compare, completion_trend
 author_today/storage/     ← mssql_repo (после рефакторинга §2)
 author_today/domain/      ← ReadSnapshot (после §3)
 ```
@@ -77,6 +77,7 @@ author_today/domain/      ← ReadSnapshot (после §3)
 |-------|---------|
 | **Воронка** | book_id, период, base-order, skip-book-page; таблица + line/bar chart по % от базы |
 | **Сравнение** | период A / B, base-order; таблица μ, σ, p-value; подсветка p &lt; 0,05 |
+| **Тренд дочитывания** | book_id, период, глава (по умолчанию последняя), skip-book-page / base-order; % от базы по месяцам |
 
 Источник: **только MS SQL** (ADR-012). JSON в `data/raw/` не показываем в UI.
 

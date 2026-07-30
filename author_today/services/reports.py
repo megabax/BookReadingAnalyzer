@@ -8,6 +8,11 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
+from author_today.analyze.completion_trend import (
+    CompletionTrendReport,
+    build_completion_trend,
+    list_chapter_options,
+)
 from author_today.analyze.funnel import FunnelStep, funnel_from_snapshot
 from author_today.analyze.funnel_compare import (
     FunnelCompareReport,
@@ -16,6 +21,7 @@ from author_today.analyze.funnel_compare import (
 )
 from author_today.domain.models import ReadSnapshot
 from author_today.errors import ConfigError
+from author_today.fetch.periods import split_period_into_months
 from author_today.storage.factory import get_repository
 from config.settings import RAW_DIR, Settings
 
@@ -117,4 +123,53 @@ def load_funnel_compare(
         period_a_end=period_a_end,
         period_b_start=period_b_start,
         period_b_end=period_b_end,
+    )
+
+
+def load_chapter_options(
+    settings: Settings,
+    book_id: int,
+    period_start: date,
+    period_end: date,
+    *,
+    skip_book_page: bool = False,
+) -> list[tuple[int, str]]:
+    """Главы книги за период (для выбора целевой главы в тренде)."""
+    snapshot = load_read_snapshot(settings, book_id, period_start, period_end)
+    return list_chapter_options(
+        snapshot.chapter_totals(),
+        skip_book_page=skip_book_page,
+    )
+
+
+def load_completion_trend(
+    settings: Settings,
+    book_id: int,
+    period_start: date,
+    period_end: date,
+    *,
+    target_chapter_order: int | None = None,
+    skip_book_page: bool = False,
+    baseline_chapter_order: int | None = None,
+) -> CompletionTrendReport:
+    """% выбранной главы от базы по календарным месяцам (метрика как у воронки)."""
+    full = load_read_snapshot(settings, book_id, period_start, period_end)
+    chunks = split_period_into_months(period_start, period_end)
+    monthly: list[ReadSnapshot] = []
+    for chunk_start, chunk_end in chunks:
+        if chunk_start == period_start and chunk_end == period_end:
+            monthly.append(full)
+        else:
+            monthly.append(
+                load_read_snapshot(settings, book_id, chunk_start, chunk_end)
+            )
+    return build_completion_trend(
+        monthly,
+        book_id=book_id,
+        period_start=period_start,
+        period_end=period_end,
+        catalog_rows=full.chapter_totals(),
+        target_chapter_order=target_chapter_order,
+        skip_book_page=skip_book_page,
+        baseline_chapter_order=baseline_chapter_order,
     )
