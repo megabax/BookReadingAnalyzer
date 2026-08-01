@@ -179,7 +179,7 @@ pytest + фикстуры; `stats_test.py` переименован в `hypothes
 
 `MssqlReadRepository._chapter_rows()` и `ReadSnapshot.to_document()` по-разному итерируют `(dates × chapters)`.
 
-**Рекомендация:** `ReadSnapshot.iter_read_rows()` → `(read_date, chapter_order, chapter_name, views)` для JSON export и MSSQL insert.
+**Рекомендация:** `ReadSnapshot.iter_read_rows()` → `(read_date, chapter_order, chapter_name, metric_value)` для JSON export и MSSQL insert.
 
 ---
 

@@ -6,7 +6,7 @@ from collections.abc import Iterable
 
 BOOK_PAGE_NAME = "страница книги"
 
-ChapterRow = tuple[int, str, int]  # chapter_order, chapter_name, views
+ChapterRow = tuple[int, str, float]  # chapter_order, chapter_name, metric_value
 
 
 def is_book_page(name: str) -> bool:

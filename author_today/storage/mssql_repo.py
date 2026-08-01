@@ -4,16 +4,16 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
-from author_today.domain.models import ReadSnapshot
+from author_today.domain.models import MetricValue, ReadSnapshot, coerce_metric_value
 from author_today.storage.mssql.connection import connect
 from config.settings import Settings
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "mssql" / "schema.sql"
 
-# chapter_order, chapter_name, total_views
-ChapterViewsRow = tuple[int, str, int]
-# read_date -> chapter_order -> (chapter_name, views)
-DailyChapterMatrix = dict[date, dict[int, tuple[str, int]]]
+# chapter_order, chapter_name, total metric value
+ChapterViewsRow = tuple[int, str, MetricValue]
+# read_date -> chapter_order -> (chapter_name, metric_value)
+DailyChapterMatrix = dict[date, dict[int, tuple[str, MetricValue]]]
 
 _RUNS_FETCHED_AT_FILTER = "fr.work_id = ? AND fr.fetched_at >= ? AND fr.fetched_at <= ?"
 _RUNS_PERIOD_FILTER = "fr.work_id = ? AND fr.period_start = ? AND fr.period_end = ?"
@@ -106,12 +106,13 @@ class MssqlReadRepository:
                 cursor.fast_executemany = True
                 cursor.executemany(
                     """
-                    INSERT INTO dbo.chapter_reads (run_id, read_date, chapter_order, chapter_name, views)
+                    INSERT INTO dbo.chapter_reads
+                        (run_id, read_date, chapter_order, chapter_name, metric_value)
                     VALUES (?, ?, ?, ?, ?)
                     """,
                     [
-                        (run_id, read_date, chapter_order, chapter, views)
-                        for read_date, chapter_order, chapter, views in rows
+                        (run_id, read_date, chapter_order, chapter, metric_value)
+                        for read_date, chapter_order, chapter, metric_value in rows
                     ],
                 )
             conn.commit()
@@ -275,7 +276,7 @@ class MssqlReadRepository:
                 cr.read_date,
                 cr.chapter_order,
                 cr.chapter_name,
-                SUM(COALESCE(cr.views, 0)) AS views
+                SUM(COALESCE(cr.metric_value, 0)) AS metric_value
             FROM dbo.chapter_reads cr
             INNER JOIN dbo.fetch_runs fr ON fr.id = cr.run_id
             WHERE fr.work_id = ?
@@ -296,10 +297,11 @@ class MssqlReadRepository:
         with connect(self.settings) as conn:
             cursor = conn.cursor()
             cursor.execute(reads_sql, params)
-            rows: list[tuple[date, int, str, int]] = []
-            for read_date, chapter_order, chapter_name, views in cursor.fetchall():
+            rows: list[tuple[date, int, str, MetricValue]] = []
+            for read_date, chapter_order, chapter_name, metric_value in cursor.fetchall():
                 d = read_date if isinstance(read_date, date) else date.fromisoformat(str(read_date)[:10])
-                rows.append((d, int(chapter_order), str(chapter_name), int(views)))
+                coerced = coerce_metric_value(metric_value)
+                rows.append((d, int(chapter_order), str(chapter_name), 0.0 if coerced is None else coerced))
             cursor.execute(fetched_sql, params)
             fetched_raw = cursor.fetchone()[0]
             if fetched_raw is None:
@@ -333,7 +335,7 @@ class MssqlReadRepository:
         period_start: date,
         period_end: date,
     ) -> DailyChapterMatrix:
-        """Дневная матрица просмотров: дата → chapter_order → (имя, views)."""
+        """Дневная матрица метрик: дата → chapter_order → (имя, metric_value)."""
         return self.load_snapshot(book_id, period_start, period_end).daily_matrix()
 
     def _preview_delete_runs(self, runs_filter: str, params: tuple) -> DeleteRunsPreview:

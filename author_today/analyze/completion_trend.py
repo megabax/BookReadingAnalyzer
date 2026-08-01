@@ -21,8 +21,8 @@ class CompletionTrendPoint:
     month_label: str
     target_chapter_order: int
     target_chapter_name: str
-    target_views: int
-    baseline_views: int
+    target_views: float
+    baseline_views: float
     pct_of_baseline: float
 
 

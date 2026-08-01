@@ -36,7 +36,7 @@ JSON в `data/raw/` — **устаревший** промежуточный фо
 | `fetched_at` | ISO datetime | Время сохранения |
 | `dates[].date` | ISO date | День наблюдения |
 | `dates[].chapters[].chapter` | string | Название как на сайте |
-| `dates[].chapters[].views` | int \| null | Просмотры; null трактуется как 0 в отчётах |
+| `dates[].chapters[].views` | number \| null | Метрика в JSON (hit); при сохранении в MS SQL → `chapter_reads.metric_value` (DECIMAL) |
 
 **Порядок глав:** позиция в массиве `chapters` = `chapter_order` (1-based). Поле `chapter_order` в JSON **не записывается** (`to_document()`).
 
@@ -67,11 +67,11 @@ JSON в `data/raw/` — **устаревший** промежуточный фо
 | `read_date` | DATE | |
 | `chapter_order` | INT | Порядок на сайте |
 | `chapter_name` | NVARCHAR(500) | |
-| `views` | INT NULL | |
+| `metric_value` | DECIMAL(12,2) NULL | Значение метрики run'а (hit / time / avgTime); бывш. `views` INT |
 
 PK: `(run_id, read_date, chapter_name)`.
 
-При нескольких `fetch_runs` за один период аналитика **суммирует** `views` (риск дублей — см. `delete_runs.py`).
+При нескольких `fetch_runs` за один период аналитика **суммирует** `metric_value` (риск дублей — см. `delete_runs.py`).
 
 ## CSV воронки
 
@@ -103,7 +103,7 @@ PK: `(run_id, read_date, chapter_name)`.
 
 **Суммарная воронка** (`report_funnel.py`):
 
-- `Просмотры` = SUM(views) за весь период по главе
+- `Просмотры` = SUM(metric_value) за весь период по главе (при hit)
 - `% от базы` = просмотры_главы / просмотры_базы × 100 (суммы за период)
 - `% от пред.` = отношение к **предыдущей главе в воронке** (суммы)
 - `Падение` = разница суммарных просмотров с предыдущим шагом

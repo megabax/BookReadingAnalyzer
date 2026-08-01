@@ -5,8 +5,18 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
-# read_date -> site_chapter_order -> (chapter_name, views)
-DailyMatrix = dict[date, dict[int, tuple[str, int]]]
+# Значение метрики ячейки (hit / time / avgTime); в БД — DECIMAL(12,2).
+MetricValue = float
+
+# read_date -> site_chapter_order -> (chapter_name, metric_value)
+DailyMatrix = dict[date, dict[int, tuple[str, MetricValue]]]
+
+
+def coerce_metric_value(value: object | None) -> MetricValue | None:
+    """int / Decimal / float / str → float; None остаётся None."""
+    if value is None:
+        return None
+    return float(value)
 
 
 def parse_dd_mm_columns(headers: list[str], period_start: date) -> tuple[date, ...]:
@@ -31,7 +41,7 @@ class StatsTable:
     """Таблица прочтений с сайта (как на странице: даты + строки глав)."""
 
     dates: list[str] = field(default_factory=list)
-    rows: list[dict[str, str | int | None]] = field(default_factory=list)
+    rows: list[dict[str, str | int | float | None]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -44,7 +54,7 @@ class ReadSnapshot:
     fetched_at: datetime
     dates: tuple[date, ...]
     chapters: tuple[str, ...]
-    values: tuple[tuple[int | None, ...], ...]
+    values: tuple[tuple[MetricValue | None, ...], ...]
     chapter_orders: tuple[int, ...] | None = None
 
     def site_chapter_order(self, chapter_index: int) -> int:
@@ -52,13 +62,13 @@ class ReadSnapshot:
             return self.chapter_orders[chapter_index]
         return chapter_index + 1
 
-    def chapter_totals(self) -> list[tuple[int, str, int]]:
-        """(chapter_order, chapter_name, sum views) для воронки."""
+    def chapter_totals(self) -> list[tuple[int, str, MetricValue]]:
+        """(chapter_order, chapter_name, sum metric_value) для воронки."""
         return [
             (
                 self.site_chapter_order(idx),
                 chapter,
-                sum(v or 0 for v in self.values[idx]),
+                float(sum(v or 0 for v in self.values[idx])),
             )
             for idx, chapter in enumerate(self.chapters)
         ]
@@ -67,11 +77,11 @@ class ReadSnapshot:
         """Дневная матрица для сравнения периодов."""
         matrix: DailyMatrix = {}
         for day_idx, read_date in enumerate(self.dates):
-            by_order: dict[int, tuple[str, int]] = {}
+            by_order: dict[int, tuple[str, MetricValue]] = {}
             for ch_idx, chapter in enumerate(self.chapters):
                 by_order[self.site_chapter_order(ch_idx)] = (
                     chapter,
-                    int(self.values[ch_idx][day_idx] or 0),
+                    float(self.values[ch_idx][day_idx] or 0),
                 )
             matrix[read_date] = by_order
         return matrix
@@ -88,11 +98,11 @@ class ReadSnapshot:
     ) -> ReadSnapshot:
         parsed_dates = parse_dd_mm_columns(table.dates, period_start)
         chapters: list[str] = []
-        values: list[tuple[int | None, ...]] = []
+        values: list[tuple[MetricValue | None, ...]] = []
         for row in table.rows:
             chapters.append(str(row["chapter"]))
             values.append(
-                tuple(row.get(d) for d in table.dates)  # type: ignore[misc]
+                tuple(coerce_metric_value(row.get(d)) for d in table.dates)
             )
         return cls(
             book_id=book_id,
@@ -124,13 +134,12 @@ class ReadSnapshot:
             )
 
         chapters = tuple(str(ch["chapter"]) for ch in data["dates"][0]["chapters"])
-        values: list[tuple[int | None, ...]] = []
+        values: list[tuple[MetricValue | None, ...]] = []
         for ch_idx in range(len(chapters)):
-            row: list[int | None] = []
+            row: list[MetricValue | None] = []
             for day in data["dates"]:
                 ch = day["chapters"][ch_idx]
-                v = ch.get("views")
-                row.append(int(v) if v is not None else None)
+                row.append(coerce_metric_value(ch.get("views")))
             values.append(tuple(row))
 
         return cls(
@@ -151,9 +160,9 @@ class ReadSnapshot:
         period_start: date,
         period_end: date,
         fetched_at: datetime,
-        rows: list[tuple[date, int, str, int]],
+        rows: list[tuple[date, int, str, MetricValue]],
     ) -> ReadSnapshot:
-        """Собрать снимок из строк (read_date, chapter_order, chapter_name, views)."""
+        """Собрать снимок из строк (read_date, chapter_order, chapter_name, metric_value)."""
         if not rows:
             return cls(
                 book_id=book_id,
@@ -170,12 +179,12 @@ class ReadSnapshot:
         orders = sorted({row[1] for row in rows})
         order_index = {order: idx for idx, order in enumerate(orders)}
         names: dict[int, str] = {}
-        for _read_date, order, name, _views in rows:
+        for _read_date, order, name, _metric in rows:
             names[order] = name
 
-        values_grid: list[list[int]] = [[0] * len(dates) for _ in orders]
-        for read_date, order, _name, views in rows:
-            values_grid[order_index[order]][date_index[read_date]] = int(views)
+        values_grid: list[list[MetricValue]] = [[0.0] * len(dates) for _ in orders]
+        for read_date, order, _name, metric in rows:
+            values_grid[order_index[order]][date_index[read_date]] = float(metric)
 
         return cls(
             book_id=book_id,

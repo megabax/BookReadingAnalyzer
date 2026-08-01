@@ -20,7 +20,7 @@ class FunnelStep:
     step_num: int  # порядковый номер в воронке (1..N)
     site_chapter_order: int  # chapter_order на сайте / в БД
     chapter_name: str
-    total_views: int
+    total_views: float
     pct_of_first: float
     pct_of_previous: float | None
     drop_from_previous: int | None
@@ -38,7 +38,7 @@ def default_funnel_csv_path(
 
 
 def build_funnel(
-    rows: list[tuple[int, str, int]],
+    rows: list[tuple[int, str, float]],
     *,
     skip_book_page: bool = False,
     baseline_chapter_order: int | None = None,

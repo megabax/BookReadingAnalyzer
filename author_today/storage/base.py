@@ -66,7 +66,7 @@ class ReadRepository(Protocol):
         period_start: date,
         period_end: date,
     ) -> DailyChapterMatrix:
-        """Матрица день → глава → (имя, views)."""
+        """Матрица день → глава → (имя, metric_value)."""
 
     def preview_delete_runs_by_fetched_at(
         self,

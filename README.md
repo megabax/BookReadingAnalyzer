@@ -74,7 +74,7 @@ python scripts/fetch_reads.py --start 2025-07-01 --end 2025-07-31 --wait-login 6
 | Таблица | Назначение |
 |---------|------------|
 | `dbo.fetch_runs` | Снимок загрузки: work_id, период, время |
-| `dbo.chapter_reads` | Прочтения: дата, глава, views (структура `dates` из JSON) |
+| `dbo.chapter_reads` | Прочтения: дата, глава, metric_value (структура `dates` из JSON) |
 
 ```bat
 pip install -e .

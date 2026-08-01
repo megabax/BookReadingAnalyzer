@@ -39,7 +39,8 @@ BEGIN
         read_date    DATE NOT NULL,
         chapter_order INT NOT NULL, -- порядок главы на сайте (1..N)
         chapter_name NVARCHAR(500) NOT NULL,
-        views        INT NULL,
+        -- hit / time (сек) / avgTime: до ~1e10 с двумя знаками после запятой
+        metric_value DECIMAL(12, 2) NULL,
         CONSTRAINT PK_chapter_reads PRIMARY KEY CLUSTERED (run_id, read_date, chapter_name),
         CONSTRAINT FK_chapter_reads_fetch_runs
             FOREIGN KEY (run_id) REFERENCES dbo.fetch_runs (id) ON DELETE CASCADE
@@ -50,9 +51,32 @@ BEGIN
 END
 GO
 
--- Миграция для уже существующей таблицы
+-- Миграция: chapter_order для уже существующей таблицы
 IF COL_LENGTH('dbo.chapter_reads', 'chapter_order') IS NULL
 BEGIN
     ALTER TABLE dbo.chapter_reads ADD chapter_order INT NULL;
+END
+GO
+
+-- Миграция: views → metric_value (существующие БД)
+IF COL_LENGTH('dbo.chapter_reads', 'views') IS NOT NULL
+   AND COL_LENGTH('dbo.chapter_reads', 'metric_value') IS NULL
+BEGIN
+    EXEC sp_rename N'dbo.chapter_reads.views', N'metric_value', N'COLUMN';
+END
+GO
+
+-- Миграция: INT → DECIMAL(12,2) под time / avgTime
+IF COL_LENGTH('dbo.chapter_reads', 'metric_value') IS NOT NULL
+   AND EXISTS (
+        SELECT 1
+        FROM sys.columns AS c
+        INNER JOIN sys.types AS t ON c.user_type_id = t.user_type_id
+        WHERE c.object_id = OBJECT_ID(N'dbo.chapter_reads')
+          AND c.name = N'metric_value'
+          AND t.name IN (N'int', N'bigint', N'smallint', N'tinyint')
+   )
+BEGIN
+    ALTER TABLE dbo.chapter_reads ALTER COLUMN metric_value DECIMAL(12, 2) NULL;
 END
 GO

@@ -1,6 +1,6 @@
 # Метрики beyond hit: time и avgTime
 
-Сейчас пайплайн одномерный: URL `valueType=hit` → одна матрица чисел → `chapter_reads.views` → аналитика считает всё как просмотры. У `fetch_runs` нет типа метрики.
+Сейчас пайплайн одномерный: URL `valueType=hit` → одна матрица чисел → `chapter_reads.metric_value` → аналитика считает всё как просмотры. У `fetch_runs` ещё нет типа метрики.
 
 На сайте author.today в отчёте статистики есть как минимум:
 
@@ -14,10 +14,18 @@
 
 ---
 
+## Сделано
+
+- Колонка `chapter_reads.views` переименована в **`metric_value`** (миграция `sp_rename` в `schema.sql`).
+- Тип **`DECIMAL(12, 2)`** — запас по величине и две цифры после запятой для avgTime.
+- JSON-снимок по-прежнему использует поле `views` (устаревший контракт); в БД пишется `metric_value`.
+
+---
+
 ## Почему нельзя «просто сменить valueType»
 
-1. Писать `time`/`avgTime` в ту же колонку `views` без метки на run — смешает метрики в `SUM` и сломает воронку/сравнение/тренд.
-2. Три колонки (`views`, `time`, `avg_time`) в одной строке при трёх отдельных загрузках без merge дадут полупустые строки и сложный upsert.
+1. Писать `time`/`avgTime` в ту же колонку без метки на run — смешает метрики в `SUM` и сломает воронку/сравнение/тренд.
+2. Три колонки (`metric_value` / `time` / `avg_time`) в одной строке при трёх отдельных загрузках без merge дадут полупустые строки и сложный upsert.
 3. Сайт отдаёт **одну** серию за один запрос URL — один Selenium-проход ≠ три метрики сразу.
 
 ---
@@ -25,7 +33,7 @@
 ## Рекомендация: один run = одна метрика
 
 **Не расширять строку `chapter_reads` колонками time/avg_time.**  
-Хранить тип на уровне загрузки; значение оставить в существующей колонке факта.
+Хранить тип на уровне загрузки; значение — в `metric_value`.
 
 ### Схема БД
 
@@ -35,8 +43,8 @@
    - `UPDATE dbo.fetch_runs SET value_type = N'hit' WHERE value_type IS NULL`
    - `ALTER … NOT NULL`
    - CHECK / ограничение на набор: `hit` | `time` | `avgTime`
-3. Колонку `chapter_reads.views` **оставить** (семантика: «значение метрики этого run»). Переименовывать не обязательно; позже можно VIEW/`metric_value` для ясности.
-4. Тип значения: для `hit`/`time` достаточно целых; для `avgTime` заранее заложить `DECIMAL(12,2)` или расширить `views` до совместимого числового типа — иначе парсер будет терять дроби.
+3. ~~`chapter_reads.views`~~ → **`metric_value`** ✅; тип **`DECIMAL(12,2)`** ✅ (hit, секунды time, avgTime с сотыми).
+4. Для `avgTime` при загрузке с сайта понадобится парсер с дробями (сейчас DOM — `_parse_int`).
 
 История не ломается: все старые run'ы после backfill = `hit`; `load_snapshot` по умолчанию фильтрует `value_type = 'hit'`.
 
@@ -52,7 +60,7 @@
 ```text
 load_snapshot(..., metric="hit")  # default
   → JOIN/WHERE fr.value_type = @metric
-  → SUM(views) как сейчас (для hit и time)
+  → SUM(metric_value) как сейчас (для hit и time)
 ```
 
 | Метрика | Агрегация по дням/run | Воронка «% от базы» |
@@ -79,7 +87,7 @@ load_snapshot(..., metric="hit")  # default
 ## Чего избегать
 
 - Разные `valueType` в одну колонку без `fetch_runs.value_type`.
-- Wide-row (`views` + `time` + `avg_time`) как основной дизайн при раздельных загрузках.
+- Wide-row (`metric_value` + `time` + `avg_time`) как основной дизайн при раздельных загрузках.
 - Считать воронку по `avgTime` через тот же `SUM`, что для hit.
 - Перекачивать весь hit-архив ради появления новых метрик.
 
@@ -87,11 +95,13 @@ load_snapshot(..., metric="hit")  # default
 
 ## Порядок внедрения
 
-1. Миграция `fetch_runs.value_type` + backfill `'hit'`.
-2. `save_snapshot` / `load_snapshot` / gaps / delete учитывают метрику; default `hit`.
-3. Загрузка: явный выбор `hit` | `time` | `avgTime` (+ опция «все три»).
-4. UI отчётов: селектор метрики, default `hit`.
-5. Отдельная семантика analyze для `avgTime` (AVG / свои отчёты).
+1. ~~Переименовать `views` → `metric_value`~~ ✅  
+2. ~~`metric_value DECIMAL(12,2)`~~ ✅  
+3. Миграция `fetch_runs.value_type` + backfill `'hit'`.  
+4. `save_snapshot` / `load_snapshot` / gaps / delete учитывают метрику; default `hit`.  
+5. Загрузка: явный выбор `hit` | `time` | `avgTime` (+ опция «все три»).  
+6. UI отчётов: селектор метрики, default `hit`.  
+7. Отдельная семантика analyze для `avgTime` (AVG / свои отчёты).
 
 ---
 
@@ -105,6 +115,6 @@ load_snapshot(..., metric="hit")  # default
 | Схема / repo | `storage/mssql/schema.sql`, `storage/mssql_repo.py` |
 | Синк | `pipeline/sync_reads.py`, `services/fetch.py` |
 | Отчёты | `analyze/*`, `services/reports.py` — пока только hit-семантика |
-| Контракты | `docs/data_contracts.md` — обновить при внедрении |
+| Контракты | `docs/data_contracts.md` |
 
-После внедрения — ADR в `docs/decisions.md` и правка `data_contracts.md`.
+После внедрения `value_type` — ADR в `docs/decisions.md`.
