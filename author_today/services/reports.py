@@ -20,6 +20,7 @@ from author_today.analyze.funnel_compare import (
     daily_matrix_from_snapshot,
 )
 from author_today.domain.models import ReadSnapshot
+from author_today.domain.value_types import DEFAULT_VALUE_TYPE
 from author_today.errors import ConfigError
 from author_today.fetch.periods import split_period_into_months
 from author_today.storage.factory import get_repository
@@ -49,10 +50,15 @@ def load_read_snapshot(
     book_id: int,
     period_start: date,
     period_end: date,
+    *,
+    value_type: str = DEFAULT_VALUE_TYPE,
 ) -> ReadSnapshot:
     _require_mssql(settings)
     return get_repository(settings).load_snapshot(
-        book_id, period_start, period_end
+        book_id,
+        period_start,
+        period_end,
+        value_type=value_type,
     )
 
 
@@ -65,6 +71,7 @@ def load_funnel_steps(
     json_path: Path | None = None,
     skip_book_page: bool = False,
     baseline_chapter_order: int | None = None,
+    value_type: str = DEFAULT_VALUE_TYPE,
 ) -> list[FunnelStep]:
     if json_path is not None:
         if not settings.enable_legacy_json:
@@ -74,7 +81,13 @@ def load_funnel_steps(
             )
         snapshot = ReadSnapshot.from_json(json_path)
     else:
-        snapshot = load_read_snapshot(settings, book_id, period_start, period_end)
+        snapshot = load_read_snapshot(
+            settings,
+            book_id,
+            period_start,
+            period_end,
+            value_type=value_type,
+        )
     return funnel_from_snapshot(
         snapshot,
         skip_book_page=skip_book_page,
@@ -94,6 +107,7 @@ def load_funnel_compare(
     json_path_b: Path | None = None,
     baseline_chapter_order: int,
     skip_book_page: bool = False,
+    value_type: str = DEFAULT_VALUE_TYPE,
 ) -> FunnelCompareReport:
     if json_path_a or json_path_b:
         if not settings.enable_legacy_json:
@@ -107,10 +121,22 @@ def load_funnel_compare(
         matrix_b = daily_matrix_from_snapshot(ReadSnapshot.from_json(json_path_b))
     else:
         matrix_a = daily_matrix_from_snapshot(
-            load_read_snapshot(settings, book_id, period_a_start, period_a_end)
+            load_read_snapshot(
+                settings,
+                book_id,
+                period_a_start,
+                period_a_end,
+                value_type=value_type,
+            )
         )
         matrix_b = daily_matrix_from_snapshot(
-            load_read_snapshot(settings, book_id, period_b_start, period_b_end)
+            load_read_snapshot(
+                settings,
+                book_id,
+                period_b_start,
+                period_b_end,
+                value_type=value_type,
+            )
         )
 
     return compare_funnel_periods(
@@ -133,9 +159,16 @@ def load_chapter_options(
     period_end: date,
     *,
     skip_book_page: bool = False,
+    value_type: str = DEFAULT_VALUE_TYPE,
 ) -> list[tuple[int, str]]:
     """Главы книги за период (для выбора целевой главы в тренде)."""
-    snapshot = load_read_snapshot(settings, book_id, period_start, period_end)
+    snapshot = load_read_snapshot(
+        settings,
+        book_id,
+        period_start,
+        period_end,
+        value_type=value_type,
+    )
     return list_chapter_options(
         snapshot.chapter_totals(),
         skip_book_page=skip_book_page,
@@ -151,9 +184,12 @@ def load_completion_trend(
     target_chapter_order: int | None = None,
     skip_book_page: bool = False,
     baseline_chapter_order: int | None = None,
+    value_type: str = DEFAULT_VALUE_TYPE,
 ) -> CompletionTrendReport:
     """% выбранной главы от базы по календарным месяцам (метрика как у воронки)."""
-    full = load_read_snapshot(settings, book_id, period_start, period_end)
+    full = load_read_snapshot(
+        settings, book_id, period_start, period_end, value_type=value_type
+    )
     chunks = split_period_into_months(period_start, period_end)
     monthly: list[ReadSnapshot] = []
     for chunk_start, chunk_end in chunks:
@@ -161,7 +197,13 @@ def load_completion_trend(
             monthly.append(full)
         else:
             monthly.append(
-                load_read_snapshot(settings, book_id, chunk_start, chunk_end)
+                load_read_snapshot(
+                    settings,
+                    book_id,
+                    chunk_start,
+                    chunk_end,
+                    value_type=value_type,
+                )
             )
     return build_completion_trend(
         monthly,

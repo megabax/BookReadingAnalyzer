@@ -38,6 +38,7 @@ class BookLoadInfoPanel:
                 [
                     {
                         "run_id": run.run_id,
+                        "метрика": run.value_type,
                         "период с": run.period_start,
                         "период по": run.period_end,
                         "загружено": run.fetched_at.strftime("%Y-%m-%d %H:%M"),
@@ -48,8 +49,8 @@ class BookLoadInfoPanel:
                 width="stretch",
             )
             st.caption(
-                "В отчётах за произвольный период суммируются все run'ы, "
-                "попадающие в выбранные даты read_date."
+                "В отчётах суммируются run'ы выбранной метрики (сейчас по умолчанию hit), "
+                "попадающие в даты read_date."
             )
         elif info.read_date_min:
             st.caption("Записи fetch_runs не найдены, но строки chapter_reads есть.")

@@ -20,7 +20,11 @@ BEGIN
         period_start DATE NOT NULL,
         period_end   DATE NOT NULL,
         fetched_at   DATETIME2(3) NOT NULL,
-        CONSTRAINT PK_fetch_runs PRIMARY KEY CLUSTERED (id)
+        value_type   NVARCHAR(16) NOT NULL
+            CONSTRAINT DF_fetch_runs_value_type DEFAULT (N'hit'),
+        CONSTRAINT PK_fetch_runs PRIMARY KEY CLUSTERED (id),
+        CONSTRAINT CK_fetch_runs_value_type
+            CHECK (value_type IN (N'hit', N'time', N'avgTime'))
     );
 
     ALTER TABLE dbo.fetch_runs
@@ -29,6 +33,9 @@ BEGIN
 
     CREATE INDEX IX_fetch_runs_work_id_fetched
         ON dbo.fetch_runs (work_id, fetched_at DESC);
+
+    CREATE INDEX IX_fetch_runs_work_value_fetched
+        ON dbo.fetch_runs (work_id, value_type, fetched_at DESC);
 END
 GO
 
@@ -78,5 +85,60 @@ IF COL_LENGTH('dbo.chapter_reads', 'metric_value') IS NOT NULL
    )
 BEGIN
     ALTER TABLE dbo.chapter_reads ALTER COLUMN metric_value DECIMAL(12, 2) NULL;
+END
+GO
+
+-- Миграция: fetch_runs.value_type (hit / time / avgTime)
+IF COL_LENGTH('dbo.fetch_runs', 'value_type') IS NULL
+BEGIN
+    ALTER TABLE dbo.fetch_runs ADD value_type NVARCHAR(16) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.fetch_runs', 'value_type') IS NOT NULL
+BEGIN
+    UPDATE dbo.fetch_runs SET value_type = N'hit' WHERE value_type IS NULL;
+
+    IF EXISTS (
+        SELECT 1
+        FROM sys.columns
+        WHERE object_id = OBJECT_ID(N'dbo.fetch_runs')
+          AND name = N'value_type'
+          AND is_nullable = 1
+    )
+    BEGIN
+        ALTER TABLE dbo.fetch_runs ALTER COLUMN value_type NVARCHAR(16) NOT NULL;
+    END
+
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.default_constraints
+        WHERE parent_object_id = OBJECT_ID(N'dbo.fetch_runs')
+          AND name = N'DF_fetch_runs_value_type'
+    )
+    BEGIN
+        ALTER TABLE dbo.fetch_runs
+            ADD CONSTRAINT DF_fetch_runs_value_type DEFAULT (N'hit') FOR value_type;
+    END
+
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.check_constraints
+        WHERE parent_object_id = OBJECT_ID(N'dbo.fetch_runs')
+          AND name = N'CK_fetch_runs_value_type'
+    )
+    BEGIN
+        ALTER TABLE dbo.fetch_runs
+            ADD CONSTRAINT CK_fetch_runs_value_type
+                CHECK (value_type IN (N'hit', N'time', N'avgTime'));
+    END
+
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.fetch_runs')
+          AND name = N'IX_fetch_runs_work_value_fetched'
+    )
+    BEGIN
+        CREATE INDEX IX_fetch_runs_work_value_fetched
+            ON dbo.fetch_runs (work_id, value_type, fetched_at DESC);
+    END
 END
 GO

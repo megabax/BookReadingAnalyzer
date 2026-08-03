@@ -18,7 +18,8 @@
 
 - Колонка `chapter_reads.views` переименована в **`metric_value`** (миграция `sp_rename` в `schema.sql`).
 - Тип **`DECIMAL(12, 2)`** — запас по величине и две цифры после запятой для avgTime.
-- JSON-снимок по-прежнему использует поле `views` (устаревший контракт); в БД пишется `metric_value`.
+- **`fetch_runs.value_type`** (`hit` \| `time` \| `avgTime`) + backfill `'hit'`; `load_snapshot` фильтрует по метрике (default hit).
+- JSON-снимок: поле `views` + опционально `value_type`; в БД — `metric_value` + `fetch_runs.value_type`.
 
 ---
 
@@ -97,11 +98,12 @@ load_snapshot(..., metric="hit")  # default
 
 1. ~~Переименовать `views` → `metric_value`~~ ✅  
 2. ~~`metric_value DECIMAL(12,2)`~~ ✅  
-3. Миграция `fetch_runs.value_type` + backfill `'hit'`.  
-4. `save_snapshot` / `load_snapshot` / gaps / delete учитывают метрику; default `hit`.  
-5. Загрузка: явный выбор `hit` | `time` | `avgTime` (+ опция «все три»).  
+3. ~~Миграция `fetch_runs.value_type` + backfill `'hit'`~~ ✅  
+4. ~~`save_snapshot` / `load_snapshot` учитывают метрику; default `hit`~~ ✅  
+5. Загрузка: явный выбор `hit` | `time` | `avgTime` в UI (+ опция «все три»).  
 6. UI отчётов: селектор метрики, default `hit`.  
-7. Отдельная семантика analyze для `avgTime` (AVG / свои отчёты).
+7. Gaps / delete по метрике (частично: покрытие read_date уже по `value_type`).  
+8. Отдельная семантика analyze для `avgTime` (AVG / свои отчёты).
 
 ---
 

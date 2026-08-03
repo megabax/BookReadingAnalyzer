@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
+from author_today.domain.value_types import DEFAULT_VALUE_TYPE, normalize_value_type
+
 # Значение метрики ячейки (hit / time / avgTime); в БД — DECIMAL(12,2).
 MetricValue = float
 
@@ -56,6 +58,7 @@ class ReadSnapshot:
     chapters: tuple[str, ...]
     values: tuple[tuple[MetricValue | None, ...], ...]
     chapter_orders: tuple[int, ...] | None = None
+    value_type: str = DEFAULT_VALUE_TYPE
 
     def site_chapter_order(self, chapter_index: int) -> int:
         if self.chapter_orders is not None:
@@ -95,6 +98,7 @@ class ReadSnapshot:
         period_start: date,
         period_end: date,
         fetched_at: datetime | None = None,
+        value_type: str = DEFAULT_VALUE_TYPE,
     ) -> ReadSnapshot:
         parsed_dates = parse_dd_mm_columns(table.dates, period_start)
         chapters: list[str] = []
@@ -112,6 +116,7 @@ class ReadSnapshot:
             dates=parsed_dates,
             chapters=tuple(chapters),
             values=tuple(values),
+            value_type=normalize_value_type(value_type),
         )
 
     @classmethod
@@ -131,6 +136,9 @@ class ReadSnapshot:
                 dates=(),
                 chapters=(),
                 values=(),
+                value_type=normalize_value_type(
+                    str(data.get("value_type", DEFAULT_VALUE_TYPE))
+                ),
             )
 
         chapters = tuple(str(ch["chapter"]) for ch in data["dates"][0]["chapters"])
@@ -150,6 +158,9 @@ class ReadSnapshot:
             dates=dates,
             chapters=chapters,
             values=tuple(values),
+            value_type=normalize_value_type(
+                str(data.get("value_type", DEFAULT_VALUE_TYPE))
+            ),
         )
 
     @classmethod
@@ -161,8 +172,10 @@ class ReadSnapshot:
         period_end: date,
         fetched_at: datetime,
         rows: list[tuple[date, int, str, MetricValue]],
+        value_type: str = DEFAULT_VALUE_TYPE,
     ) -> ReadSnapshot:
         """Собрать снимок из строк (read_date, chapter_order, chapter_name, metric_value)."""
+        normalized_type = normalize_value_type(value_type)
         if not rows:
             return cls(
                 book_id=book_id,
@@ -172,6 +185,7 @@ class ReadSnapshot:
                 dates=(),
                 chapters=(),
                 values=(),
+                value_type=normalized_type,
             )
 
         dates = tuple(sorted({row[0] for row in rows}))
@@ -195,6 +209,7 @@ class ReadSnapshot:
             chapters=tuple(names[order] for order in orders),
             values=tuple(tuple(row) for row in values_grid),
             chapter_orders=tuple(orders),
+            value_type=normalized_type,
         )
 
     def to_document(self) -> dict:
@@ -222,5 +237,6 @@ class ReadSnapshot:
             "period_start": self.period_start.isoformat(),
             "period_end": self.period_end.isoformat(),
             "fetched_at": self.fetched_at.isoformat(),
+            "value_type": self.value_type,
             "dates": dates_payload,
         }

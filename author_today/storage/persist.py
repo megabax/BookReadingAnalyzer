@@ -40,4 +40,5 @@ def snapshot_from_table(
         book_id=settings.book_id,
         period_start=period_start,
         period_end=period_end,
+        value_type=settings.value_type,
     )

@@ -49,9 +49,32 @@ def test_load_snapshot(mock_connect_fn, repo: MssqlReadRepository):
     snapshot = repo.load_snapshot(323389, date(2025, 7, 1), date(2025, 7, 31))
 
     assert snapshot.book_id == 323389
+    assert snapshot.value_type == "hit"
     assert snapshot.chapter_orders == (1, 2)
     assert snapshot.chapter_totals() == [(1, "Глава 1", 100), (2, "Глава 2", 50)]
     assert cursor.execute.call_count == 2
+    first_sql = cursor.execute.call_args_list[0].args[0]
+    assert "fr.value_type = ?" in first_sql
+    assert cursor.execute.call_args_list[0].args[1] == (323389, "hit", date(2025, 7, 1), date(2025, 7, 31))
+
+
+@patch("author_today.storage.mssql_repo.connect")
+def test_load_snapshot_filters_value_type(mock_connect_fn, repo: MssqlReadRepository):
+    conn, cursor = _mock_connect(
+        fetchall_results=[[]],
+        fetchone_results=[(None,)],
+    )
+    mock_connect_fn.return_value.__enter__.return_value = conn
+
+    snapshot = repo.load_snapshot(
+        323389,
+        date(2025, 7, 1),
+        date(2025, 7, 31),
+        value_type="time",
+    )
+
+    assert snapshot.value_type == "time"
+    assert cursor.execute.call_args_list[0].args[1][1] == "time"
 
 
 @patch("author_today.storage.mssql_repo.connect")
@@ -185,7 +208,14 @@ def test_get_book_load_info(mock_connect_fn, repo: MssqlReadRepository):
     list_conn, list_cursor = _mock_connect(
         fetchall_results=[
             [
-                (10, 172953, date(2025, 7, 1), date(2025, 7, 31), datetime(2026, 6, 1, 12, 0)),
+                (
+                    10,
+                    172953,
+                    date(2025, 7, 1),
+                    date(2025, 7, 31),
+                    datetime(2026, 6, 1, 12, 0),
+                    "hit",
+                ),
             ]
         ],
     )
@@ -195,6 +225,7 @@ def test_get_book_load_info(mock_connect_fn, repo: MssqlReadRepository):
         ("period_start",),
         ("period_end",),
         ("fetched_at",),
+        ("value_type",),
     ]
     span_conn, span_cursor = _mock_connect(fetchone_results=[(date(2025, 7, 1), date(2025, 7, 31))])
     mock_connect_fn.return_value.__enter__.side_effect = [list_conn, span_conn]
@@ -206,3 +237,6 @@ def test_get_book_load_info(mock_connect_fn, repo: MssqlReadRepository):
     assert info.read_date_max == date(2025, 7, 31)
     assert len(info.runs) == 1
     assert info.runs[0].period_start == date(2025, 7, 1)
+    assert info.runs[0].value_type == "hit"
+    span_sql = span_cursor.execute.call_args.args[0]
+    assert "fr.value_type = ?" in span_sql

@@ -58,6 +58,7 @@ JSON в `data/raw/` — **устаревший** промежуточный фо
 | `work_id` | INT FK → books.id | |
 | `period_start`, `period_end` | DATE | |
 | `fetched_at` | DATETIME2 | |
+| `value_type` | NVARCHAR(16) NOT NULL | `hit` \| `time` \| `avgTime` (CHECK); старые run'ы = `hit` |
 
 ### `dbo.chapter_reads`
 
@@ -71,7 +72,7 @@ JSON в `data/raw/` — **устаревший** промежуточный фо
 
 PK: `(run_id, read_date, chapter_name)`.
 
-При нескольких `fetch_runs` за один период аналитика **суммирует** `metric_value` (риск дублей — см. `delete_runs.py`).
+При нескольких `fetch_runs` **одной метрики** (`value_type`) за один период аналитика **суммирует** `metric_value` (риск дублей — см. `delete_runs.py`). Отчёты по умолчанию читают только `value_type = hit`.
 
 ## CSV воронки
 

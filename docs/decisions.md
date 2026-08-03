@@ -128,3 +128,12 @@
 **Контекст:** единственная реализация — MS SQL, но возможен переход на другую СУБД; Protocol был узким и не использовался.  
 **Решение:** расширенный **`ReadRepository`**; единая точка **`get_repository(settings)`** (`storage/factory.py`). Callers не импортируют конкретный класс. Новая БД = новый класс + ветка в фабрике.  
 **Последствия:** `create_mssql_repository` — низкоуровневый конструктор MSSQL; см. `refactoring_plan.md` §9.
+
+---
+
+## ADR-014: `fetch_runs.value_type` — один run = одна метрика
+
+**Статус:** принято, реализовано (2026-08)  
+**Контекст:** сайт отдаёт `valueType` hit / time / avgTime отдельными страницами; нужны отдельные загрузки без порчи уже накопленного hit.  
+**Решение:** колонка **`fetch_runs.value_type`** (`hit` \| `time` \| `avgTime`); значение в **`chapter_reads.metric_value`**. `save_snapshot` пишет тип из `ReadSnapshot` / `Settings.value_type`. `load_snapshot(..., value_type=)` фильтрует; default **`hit`**.  
+**Последствия:** отчёты по умолчанию не смешивают метрики; догрузка time/avgTime — отдельные run'ы. См. `docs/metrics_value_types.md`.

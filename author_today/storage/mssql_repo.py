@@ -5,6 +5,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from author_today.domain.models import MetricValue, ReadSnapshot, coerce_metric_value
+from author_today.domain.value_types import DEFAULT_VALUE_TYPE, normalize_value_type
 from author_today.storage.mssql.connection import connect
 from config.settings import Settings
 
@@ -38,6 +39,7 @@ class LoadedRun:
     period_start: date
     period_end: date
     fetched_at: datetime
+    value_type: str = DEFAULT_VALUE_TYPE
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,7 @@ class RunDateCoverage:
     period_end: date
     fetched_at: datetime
     read_dates: frozenset[date]
+    value_type: str = DEFAULT_VALUE_TYPE
 
 
 class MssqlReadRepository:
@@ -78,6 +81,7 @@ class MssqlReadRepository:
     def save_snapshot(self, snapshot: ReadSnapshot) -> int:
         """Сохранить снимок: fetch_runs + chapter_reads (структура dates)."""
         rows = self._chapter_rows(snapshot)
+        value_type = normalize_value_type(snapshot.value_type)
         with connect(self.settings) as conn:
             cursor = conn.cursor()
             # Book must exist for FK fetch_runs.work_id -> books.id
@@ -91,14 +95,16 @@ class MssqlReadRepository:
             )
             cursor.execute(
                 """
-                INSERT INTO dbo.fetch_runs (work_id, period_start, period_end, fetched_at)
+                INSERT INTO dbo.fetch_runs
+                    (work_id, period_start, period_end, fetched_at, value_type)
                 OUTPUT INSERTED.id
-                VALUES (?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 snapshot.book_id,
                 snapshot.period_start,
                 snapshot.period_end,
                 snapshot.fetched_at,
+                value_type,
             )
             run_id = int(cursor.fetchone()[0])
 
@@ -123,7 +129,7 @@ class MssqlReadRepository:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT TOP (?) id, work_id, period_start, period_end, fetched_at
+                SELECT TOP (?) id, work_id, period_start, period_end, fetched_at, value_type
                 FROM dbo.fetch_runs
                 WHERE work_id = ?
                 ORDER BY fetched_at DESC
@@ -134,8 +140,15 @@ class MssqlReadRepository:
             columns = [col[0] for col in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-    def get_book_load_info(self, book_id: int, *, limit: int = 50) -> BookLoadInfo:
+    def get_book_load_info(
+        self,
+        book_id: int,
+        *,
+        limit: int = 50,
+        value_type: str = DEFAULT_VALUE_TYPE,
+    ) -> BookLoadInfo:
         """Загрузки книги (fetch_runs) и фактический диапазон read_date в chapter_reads."""
+        metric = normalize_value_type(value_type)
         runs_raw = self.list_runs(book_id, limit=limit)
         runs: list[LoadedRun] = []
         for row in runs_raw:
@@ -150,12 +163,16 @@ class MssqlReadRepository:
                 period_start = date.fromisoformat(str(period_start)[:10])
             if not isinstance(period_end, date):
                 period_end = date.fromisoformat(str(period_end)[:10])
+            run_value_type = normalize_value_type(
+                str(row.get("value_type") or DEFAULT_VALUE_TYPE)
+            )
             runs.append(
                 LoadedRun(
                     run_id=int(row["id"]),
                     period_start=period_start,
                     period_end=period_end,
                     fetched_at=fetched_at,
+                    value_type=run_value_type,
                 )
             )
 
@@ -167,8 +184,10 @@ class MssqlReadRepository:
                 FROM dbo.chapter_reads cr
                 INNER JOIN dbo.fetch_runs fr ON fr.id = cr.run_id
                 WHERE fr.work_id = ?
+                  AND fr.value_type = ?
                 """,
                 book_id,
+                metric,
             )
             row = cursor.fetchone()
             read_min = row[0]
@@ -198,6 +217,7 @@ class MssqlReadRepository:
                 fr.period_start,
                 fr.period_end,
                 fr.fetched_at,
+                fr.value_type,
                 cr.read_date
             FROM dbo.fetch_runs fr
             LEFT JOIN dbo.books b ON b.id = fr.work_id
@@ -221,7 +241,16 @@ class MssqlReadRepository:
         with connect(self.settings) as conn:
             cursor = conn.cursor()
             cursor.execute(sql, params)
-            for run_id, work_id, title, period_start, period_end, fetched_at, read_date in cursor.fetchall():
+            for (
+                run_id,
+                work_id,
+                title,
+                period_start,
+                period_end,
+                fetched_at,
+                value_type,
+                read_date,
+            ) in cursor.fetchall():
                 run_id = int(run_id)
                 entry = grouped.get(run_id)
                 if entry is None:
@@ -231,6 +260,9 @@ class MssqlReadRepository:
                         "period_start": _as_date(period_start),
                         "period_end": _as_date(period_end),
                         "fetched_at": _as_datetime(fetched_at),
+                        "value_type": normalize_value_type(
+                            str(value_type or DEFAULT_VALUE_TYPE)
+                        ),
                         "read_dates": set(),
                     }
                     grouped[run_id] = entry
@@ -246,6 +278,7 @@ class MssqlReadRepository:
                 period_end=entry["period_end"],
                 fetched_at=entry["fetched_at"],
                 read_dates=frozenset(entry["read_dates"]),
+                value_type=entry["value_type"],
             )
             for run_id, entry in grouped.items()
         ]
@@ -269,8 +302,11 @@ class MssqlReadRepository:
         book_id: int,
         period_start: date,
         period_end: date,
+        *,
+        value_type: str = DEFAULT_VALUE_TYPE,
     ) -> ReadSnapshot:
-        """Агрегированный снимок прочтений за период (все run'ы книги)."""
+        """Агрегированный снимок за период (run'ы книги с данным value_type)."""
+        metric = normalize_value_type(value_type)
         reads_sql = """
             SELECT
                 cr.read_date,
@@ -280,6 +316,7 @@ class MssqlReadRepository:
             FROM dbo.chapter_reads cr
             INNER JOIN dbo.fetch_runs fr ON fr.id = cr.run_id
             WHERE fr.work_id = ?
+              AND fr.value_type = ?
               AND cr.read_date >= ?
               AND cr.read_date <= ?
             GROUP BY cr.read_date, cr.chapter_order, cr.chapter_name
@@ -290,10 +327,11 @@ class MssqlReadRepository:
             FROM dbo.fetch_runs fr
             INNER JOIN dbo.chapter_reads cr ON cr.run_id = fr.id
             WHERE fr.work_id = ?
+              AND fr.value_type = ?
               AND cr.read_date >= ?
               AND cr.read_date <= ?
         """
-        params = (book_id, period_start, period_end)
+        params = (book_id, metric, period_start, period_end)
         with connect(self.settings) as conn:
             cursor = conn.cursor()
             cursor.execute(reads_sql, params)
@@ -317,6 +355,7 @@ class MssqlReadRepository:
             period_end=period_end,
             fetched_at=fetched_at,
             rows=rows,
+            value_type=metric,
         )
 
     def aggregate_chapter_views(
@@ -324,9 +363,13 @@ class MssqlReadRepository:
         book_id: int,
         period_start: date,
         period_end: date,
+        *,
+        value_type: str = DEFAULT_VALUE_TYPE,
     ) -> list[ChapterViewsRow]:
-        """Сумма просмотров по главам за период (все run'ы книги)."""
-        snapshot = self.load_snapshot(book_id, period_start, period_end)
+        """Сумма metric_value по главам за период (одна метрика)."""
+        snapshot = self.load_snapshot(
+            book_id, period_start, period_end, value_type=value_type
+        )
         return snapshot.chapter_totals()
 
     def daily_chapter_matrix(
@@ -334,9 +377,13 @@ class MssqlReadRepository:
         book_id: int,
         period_start: date,
         period_end: date,
+        *,
+        value_type: str = DEFAULT_VALUE_TYPE,
     ) -> DailyChapterMatrix:
         """Дневная матрица метрик: дата → chapter_order → (имя, metric_value)."""
-        return self.load_snapshot(book_id, period_start, period_end).daily_matrix()
+        return self.load_snapshot(
+            book_id, period_start, period_end, value_type=value_type
+        ).daily_matrix()
 
     def _preview_delete_runs(self, runs_filter: str, params: tuple) -> DeleteRunsPreview:
         runs_sql = f"SELECT fr.id FROM dbo.fetch_runs fr WHERE {runs_filter} ORDER BY fr.id"

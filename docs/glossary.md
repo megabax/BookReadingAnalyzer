@@ -74,4 +74,5 @@
 - **`hypothesis_tests.py`** — модуль расчёта p-value (Welch), **не** каталог unit-тестов (раньше `stats_test.py`).
 - **views** (JSON / UI) — число просмотров с сайта при `valueType=hit`, **не** уникальные читатели.
 - **metric_value** (MS SQL `chapter_reads`, `DECIMAL(12,2)`) — значение метрики run'а; для hit совпадает с прежним `views`.
+- **value_type** (MS SQL `fetch_runs`) — `hit` \| `time` \| `avgTime`; один run = одна метрика.
 - **воронка дочитывания** — сравнение просмотров по порядку глав, **не** классическая conversion-воронка по пользователям.

@@ -35,7 +35,13 @@ class ReadRepository(Protocol):
     def list_runs(self, book_id: int, *, limit: int = 20) -> list[dict]:
         """Последние загрузки книги (от новых к старым)."""
 
-    def get_book_load_info(self, book_id: int, *, limit: int = 50) -> BookLoadInfo:
+    def get_book_load_info(
+        self,
+        book_id: int,
+        *,
+        limit: int = 50,
+        value_type: str = "hit",
+    ) -> BookLoadInfo:
         """Загрузки + фактический диапазон read_date."""
 
     def list_run_date_coverage(self, book_id: int | None = None) -> list[RunDateCoverage]:
@@ -49,22 +55,28 @@ class ReadRepository(Protocol):
         book_id: int,
         period_start: date,
         period_end: date,
+        *,
+        value_type: str = "hit",
     ) -> ReadSnapshot:
-        """Собрать ReadSnapshot из chapter_reads за период."""
+        """Собрать ReadSnapshot из chapter_reads за период (одна метрика)."""
 
     def aggregate_chapter_views(
         self,
         book_id: int,
         period_start: date,
         period_end: date,
+        *,
+        value_type: str = "hit",
     ) -> list[ChapterViewsRow]:
-        """Сумма просмотров по главам за период."""
+        """Сумма metric_value по главам за период."""
 
     def daily_chapter_matrix(
         self,
         book_id: int,
         period_start: date,
         period_end: date,
+        *,
+        value_type: str = "hit",
     ) -> DailyChapterMatrix:
         """Матрица день → глава → (имя, metric_value)."""
 
