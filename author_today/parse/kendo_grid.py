@@ -26,14 +26,24 @@ def _cell_texts(row) -> list[str]:
     return [c.text.strip() for c in cells]
 
 
-def _parse_int(value: str) -> int | None:
-    value = value.strip()
+def _parse_number(value: str) -> float | None:
+    """Число из ячейки: hit/time (целые) и avgTime (дроби, запятая или точка)."""
+    value = value.strip().replace("\xa0", "").replace(" ", "")
     if not value:
         return None
+    value = value.replace(",", ".")
     try:
-        return int(value.replace("\xa0", "").replace(" ", ""))
+        return float(value)
     except ValueError:
         return None
+
+
+def _parse_int(value: str) -> int | None:
+    """Обратная совместимость: целое или None (дробь → округление вниз через int(float))."""
+    number = _parse_number(value)
+    if number is None:
+        return None
+    return int(number)
 
 
 def _is_date_header(text: str) -> bool:
@@ -125,7 +135,7 @@ def _values_for_date_indices(
     s_cells: list[str],
     date_indices: list[int],
 ) -> list[int | None]:
-    parsed = [_parse_int(v) for v in s_cells]
+    parsed = [_parse_number(v) for v in s_cells]
     return [parsed[i] if 0 <= i < len(parsed) else None for i in date_indices]
 
 
@@ -454,7 +464,7 @@ def _extract_kendo_split(grid, driver: WebDriver) -> StatsTable:
     if locked and scroll:
         for label, s_row in _locked_scroll_pairs(locked, scroll):
             s_cells = _cell_texts(s_row)
-            values = [_parse_int(v) for v in s_cells]
+            values = [_parse_number(v) for v in s_cells]
             row_data: dict[str, str | int | None] = {"chapter": label}
             for i, d in enumerate(result.dates):
                 row_data[d] = values[i] if i < len(values) else None
@@ -487,7 +497,7 @@ def _extract_plain_table(table_el, result: StatsTable) -> StatsTable:
         if not (_is_chapter_label(label) or label == "Страница книги"):
             continue
 
-        values = [_parse_int(v) for v in cells[1:]]
+        values = [_parse_number(v) for v in cells[1:]]
         row_data: dict[str, str | int | None] = {"chapter": label}
         for i, d in enumerate(result.dates):
             row_data[d] = values[i] if i < len(values) else None

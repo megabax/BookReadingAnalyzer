@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import streamlit as st
 
+from author_today.domain.value_types import (
+    DEFAULT_VALUE_TYPE,
+    VALUE_TYPE_LABELS,
+    VALUE_TYPE_ORDER,
+)
 from author_today.services.books import load_book_catalog
 from author_today.services.fetch import FetchJob, FetchResult, register_job
 from author_today.ui.base import Page
@@ -74,6 +79,25 @@ class FetchPage(Page):
                 value=self._settings.default_period_end,
             )
 
+        default_metrics = [self._settings.value_type or DEFAULT_VALUE_TYPE]
+        if default_metrics[0] not in VALUE_TYPE_ORDER:
+            default_metrics = [DEFAULT_VALUE_TYPE]
+        selected_labels = st.multiselect(
+            "Метрики (valueType в URL)",
+            options=[VALUE_TYPE_LABELS[v] for v in VALUE_TYPE_ORDER],
+            default=[VALUE_TYPE_LABELS[v] for v in default_metrics],
+            help=(
+                "hit — просмотры, time — время чтения, avgTime — среднее время. "
+                "Каждая метрика — отдельный fetch_run; можно выбрать несколько "
+                "(несколько проходов по сайту)."
+            ),
+            key="fetch_value_types",
+        )
+        label_to_type = {label: key for key, label in VALUE_TYPE_LABELS.items()}
+        value_types = tuple(
+            label_to_type[label] for label in selected_labels if label in label_to_type
+        )
+
         wait_login = 0
         with st.expander("Авторизация и опции", expanded=not self._settings.has_auto_login()):
             st.caption(
@@ -123,6 +147,7 @@ class FetchPage(Page):
                 save_mssql=save_mssql,
                 save_raw=save_raw,
                 wait_login_seconds=wait_login_seconds,
+                value_types=value_types,
             )
 
         last_result = st.session_state.get(RESULT_STATE_KEY)
@@ -153,6 +178,12 @@ class FetchPage(Page):
             f"book_id={progress.book_id} · "
             f"{progress.period_start} — {progress.period_end} · "
             f"порции {progress.chunk_label}"
+            + (
+                f" · метрики: {', '.join(progress.value_types)}"
+                if progress.value_types
+                else ""
+            )
+            + (f" · сейчас: {progress.value_type}" if progress.value_type else "")
         )
         st.progress(progress.fraction)
         st.write(progress.stage)
@@ -231,9 +262,13 @@ class FetchPage(Page):
         save_mssql: bool,
         save_raw: bool,
         wait_login_seconds: int,
+        value_types: tuple[str, ...],
     ) -> None:
         if period_start > period_end:
             st.error("Начало периода не может быть позже конца.")
+            return
+        if not value_types:
+            st.error("Выберите хотя бы одну метрику (hit / time / avgTime).")
             return
         if not save_mssql and not save_raw:
             st.error("Включите сохранение в MS SQL или JSON.")
@@ -253,6 +288,7 @@ class FetchPage(Page):
                 save_mssql=save_mssql,
                 save_raw=save_raw,
                 wait_login_seconds=wait_login_seconds,
+                value_types=value_types,
             )
         )
         bind_job(job)
@@ -262,6 +298,8 @@ class FetchPage(Page):
 
     def _render_success(self, result: FetchResult) -> None:
         st.success("Загрузка завершена.")
+        metrics = ", ".join(result.value_types) if result.value_types else "hit"
+        st.caption(f"Метрики: **{metrics}**")
         st.metric("Глав в таблице", result.chapter_count)
         st.metric("Дней в таблице", result.day_count)
         if result.table_date_min and result.table_date_max:

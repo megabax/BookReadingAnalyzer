@@ -16,6 +16,10 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from author_today.auth.login_flow import confirmation_code_visible, submit_confirmation_code
 from author_today.browser.factory import create_driver
 from author_today.domain.models import StatsTable, parse_dd_mm_columns
+from author_today.domain.value_types import (
+    DEFAULT_VALUE_TYPE,
+    normalize_value_types,
+)
 from author_today.errors import ConfigError, DeviceCodeRequired
 from author_today.fetch.periods import needs_monthly_chunks, split_period_into_months
 from author_today.pipeline.sync_reads import _auth_provider, _load_and_persist_period
@@ -42,6 +46,7 @@ class FetchResult:
     saved_raw: bool
     table_date_min: date | None = None
     table_date_max: date | None = None
+    value_types: tuple[str, ...] = ("hit",)
 
 
 @dataclass
@@ -58,6 +63,8 @@ class FetchProgress:
     hint: str | None = None
     error: str | None = None
     result: FetchResult | None = None
+    value_type: str | None = None
+    value_types: tuple[str, ...] = ()
 
     @property
     def fraction(self) -> float:
@@ -98,6 +105,7 @@ def _result_from_table(
     period_end: date,
     save_mssql: bool,
     save_raw: bool,
+    value_types: tuple[str, ...] = ("hit",),
 ) -> FetchResult:
     chunks = split_period_into_months(period_start, period_end)
     parsed_dates = parse_dd_mm_columns(table.dates, period_start)
@@ -112,6 +120,7 @@ def _result_from_table(
         saved_raw=save_raw,
         table_date_min=min(parsed_dates) if parsed_dates else None,
         table_date_max=max(parsed_dates) if parsed_dates else None,
+        value_types=value_types,
     )
 
 
@@ -133,6 +142,7 @@ class FetchSession:
         wait_login_seconds: int | None = None,
         session_id: str | None = None,
         on_progress: Callable[[str, int, int], None] | None = None,
+        value_types: tuple[str, ...] | list[str] | None = None,
     ) -> None:
         if period_start > period_end:
             raise ValueError("Начало периода должно быть не позже конца.")
@@ -150,6 +160,11 @@ class FetchSession:
         self._save_raw = save_raw
         self._wait_login_seconds = wait_login_seconds
         self._on_progress = on_progress
+        self._value_types = normalize_value_types(
+            value_types
+            if value_types is not None
+            else (settings.value_type or DEFAULT_VALUE_TYPE,)
+        )
         self._driver: WebDriver | None = None
         self.hint: str | None = None
 
@@ -226,43 +241,35 @@ class FetchSession:
             device_code_provider=code_provider,
             wait_login_seconds=self._wait_login_seconds,
         )
-        chunks = split_period_into_months(self.period_start, self.period_end)
-        total = len(chunks)
-
+        month_chunks = split_period_into_months(self.period_start, self.period_end)
         if not needs_monthly_chunks(self.period_start, self.period_end):
-            self._emit(
-                f"Загрузка {self.period_start} — {self.period_end}…",
-                1,
-                1,
-            )
-            table = _load_and_persist_period(
-                self._driver,
-                auth,
-                self._settings,
-                self.period_start,
-                self.period_end,
-                save_raw=self._save_raw,
-                save_mssql=self._save_mssql,
-            )
-        else:
-            table = None
-            for index, (chunk_start, chunk_end) in enumerate(chunks, start=1):
+            month_chunks = [(self.period_start, self.period_end)]
+        total = len(month_chunks) * len(self._value_types)
+        step = 0
+        table: StatsTable | None = None
+
+        for metric in self._value_types:
+            settings = replace(self._settings, value_type=metric)
+            for chunk_start, chunk_end in month_chunks:
+                step += 1
                 self._emit(
-                    f"Загрузка {chunk_start} — {chunk_end} (порция {index}/{total})…",
-                    index,
+                    f"[{metric}] Загрузка {chunk_start} — {chunk_end} "
+                    f"(шаг {step}/{total})…",
+                    step,
                     total,
                 )
                 table = _load_and_persist_period(
                     self._driver,
                     auth,
-                    self._settings,
+                    settings,
                     chunk_start,
                     chunk_end,
                     save_raw=self._save_raw,
                     save_mssql=self._save_mssql,
                 )
-            if table is None:
-                raise RuntimeError("Не удалось загрузить данные за период.")
+
+        if table is None:
+            raise RuntimeError("Не удалось загрузить данные за период.")
 
         return _result_from_table(
             table,
@@ -271,6 +278,7 @@ class FetchSession:
             period_end=self.period_end,
             save_mssql=self._save_mssql,
             save_raw=self._save_raw,
+            value_types=self._value_types,
         )
 
 
@@ -288,6 +296,7 @@ class FetchJob:
         save_raw: bool = False,
         wait_login_seconds: int | None = None,
         job_id: str | None = None,
+        value_types: tuple[str, ...] | list[str] | None = None,
     ) -> None:
         if period_start > period_end:
             raise ValueError("Начало периода должно быть не позже конца.")
@@ -304,9 +313,16 @@ class FetchJob:
         self._save_mssql = save_mssql
         self._save_raw = save_raw
         self._wait_login_seconds = wait_login_seconds
+        self._value_types = normalize_value_types(
+            value_types
+            if value_types is not None
+            else (settings.value_type or DEFAULT_VALUE_TYPE,)
+        )
 
-        chunks = split_period_into_months(period_start, period_end)
-        total_chunks = len(chunks) if needs_monthly_chunks(period_start, period_end) else 1
+        month_chunks = split_period_into_months(period_start, period_end)
+        if not needs_monthly_chunks(period_start, period_end):
+            month_chunks = [(period_start, period_end)]
+        total_chunks = len(month_chunks) * len(self._value_types)
 
         self._lock = threading.Lock()
         self._progress = FetchProgress(
@@ -317,6 +333,7 @@ class FetchJob:
             period_end=period_end,
             current_chunk=0,
             total_chunks=total_chunks,
+            value_types=self._value_types,
         )
         self._code_queue: queue.Queue[str | None] = queue.Queue()
         self._cancel = threading.Event()
@@ -337,6 +354,8 @@ class FetchJob:
                 hint=p.hint,
                 error=p.error,
                 result=p.result,
+                value_type=p.value_type,
+                value_types=p.value_types,
             )
 
     def start(self) -> None:
@@ -411,55 +430,45 @@ class FetchJob:
                 wait_login_seconds=self._wait_login_seconds,
             )
 
-            chunks = split_period_into_months(self.period_start, self.period_end)
-            total = self._progress.total_chunks
-
+            month_chunks = split_period_into_months(self.period_start, self.period_end)
             if not needs_monthly_chunks(self.period_start, self.period_end):
+                month_chunks = [(self.period_start, self.period_end)]
+            total = len(month_chunks) * len(self._value_types)
+            step = 0
+            table = None
+
+            for metric in self._value_types:
                 self._check_cancel()
-                self._update(
-                    status="running",
-                    stage=f"Загрузка таблицы {self.period_start} — {self.period_end}…",
-                    current_chunk=1,
-                    total_chunks=1,
-                )
-                table = _load_and_persist_period(
-                    self._driver,
-                    auth,
-                    self._settings,
-                    self.period_start,
-                    self.period_end,
-                    save_raw=self._save_raw,
-                    save_mssql=self._save_mssql,
-                )
-                self._update(stage="Порция сохранена", current_chunk=1)
-            else:
-                table = None
-                for index, (chunk_start, chunk_end) in enumerate(chunks, start=1):
+                settings = replace(self._settings, value_type=metric)
+                for chunk_start, chunk_end in month_chunks:
                     self._check_cancel()
+                    step += 1
                     self._update(
                         status="running",
                         stage=(
-                            f"Загрузка {chunk_start} — {chunk_end} "
-                            f"(порция {index}/{total})…"
+                            f"[{metric}] Загрузка {chunk_start} — {chunk_end} "
+                            f"(шаг {step}/{total})…"
                         ),
-                        current_chunk=index,
+                        current_chunk=step,
                         total_chunks=total,
+                        value_type=metric,
                     )
                     table = _load_and_persist_period(
                         self._driver,
                         auth,
-                        self._settings,
+                        settings,
                         chunk_start,
                         chunk_end,
                         save_raw=self._save_raw,
                         save_mssql=self._save_mssql,
                     )
                     self._update(
-                        stage=f"Сохранена порция {index}/{total}",
-                        current_chunk=index,
+                        stage=f"[{metric}] Сохранён шаг {step}/{total}",
+                        current_chunk=step,
                     )
-                if table is None:
-                    raise RuntimeError("Не удалось загрузить данные за период.")
+
+            if table is None:
+                raise RuntimeError("Не удалось загрузить данные за период.")
 
             result = _result_from_table(
                 table,
@@ -468,6 +477,7 @@ class FetchJob:
                 period_end=self.period_end,
                 save_mssql=self._save_mssql,
                 save_raw=self._save_raw,
+                value_types=self._value_types,
             )
             if self._cancel.is_set():
                 self._update(status="cancelled", stage="Отменено", result=None)
@@ -531,6 +541,7 @@ def fetch_reads_for_period(
     save_raw: bool = False,
     wait_login_seconds: int | None = None,
     device_code: str | None = None,
+    value_types: tuple[str, ...] | list[str] | None = None,
 ) -> FetchResult:
     """Однократная синхронная загрузка (совместимость)."""
     session = FetchSession(
@@ -541,6 +552,7 @@ def fetch_reads_for_period(
         save_mssql=save_mssql,
         save_raw=save_raw,
         wait_login_seconds=wait_login_seconds,
+        value_types=value_types,
     )
     if device_code and device_code.strip():
         code = device_code.strip()

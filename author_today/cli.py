@@ -10,6 +10,7 @@ from pathlib import Path
 
 from selenium.common.exceptions import TimeoutException
 
+from author_today.domain.value_types import VALUE_TYPE_ORDER, normalize_value_types
 from author_today.errors import AuthorTodayError
 from author_today.pipeline.sync_reads import sync_reads, sync_reads_by_period
 from config.settings import Settings
@@ -49,6 +50,22 @@ def main() -> int:
     parser.add_argument("--json", type=Path, help="Сохранить JSON")
     parser.add_argument("--no-raw", action="store_true", help="Не сохранять снимок в data/raw")
     parser.add_argument("--no-mssql", action="store_true", help="Не сохранять в MS SQL")
+    parser.add_argument(
+        "--value-type",
+        action="append",
+        choices=["hit", "time", "avgTime"],
+        dest="value_types",
+        metavar="TYPE",
+        help=(
+            "Метрика valueType в URL (hit / time / avgTime). "
+            "Можно указать несколько раз. По умолчанию AT_VALUE_TYPE."
+        ),
+    )
+    parser.add_argument(
+        "--all-metrics",
+        action="store_true",
+        help="Загрузить hit, time и avgTime за период (отдельный проход на каждую).",
+    )
     args = parser.parse_args()
 
     settings = Settings.from_env()
@@ -86,8 +103,21 @@ def main() -> int:
 
     print(f"Браузер: {'headless' if settings.headless else 'с окном Chrome'}")
 
+    if args.all_metrics:
+        metrics = VALUE_TYPE_ORDER
+    elif args.value_types:
+        metrics = normalize_value_types(args.value_types)
+    else:
+        metrics = normalize_value_types((settings.value_type,))
+
     try:
         if args.url:
+            if len(metrics) > 1:
+                print(
+                    "Предупреждение: при явном URL используется valueType из ссылки; "
+                    "--value-type / --all-metrics игнорируются для этого режима.",
+                    file=sys.stderr,
+                )
             table = sync_reads(
                 args.url,
                 settings,
@@ -108,26 +138,35 @@ def main() -> int:
                     period_start=settings.default_period_start,
                     period_end=settings.default_period_end,
                 )
-        elif args.start and args.end:
-            sync_reads_by_period(
-                settings,
-                date.fromisoformat(args.start),
-                date.fromisoformat(args.end),
-                output_csv=args.output,
-                output_json=args.json,
-                save_raw=save_raw,
-                save_mssql=save_mssql,
-            )
         else:
-            sync_reads_by_period(
-                settings,
-                settings.default_period_start,
-                settings.default_period_end,
-                output_csv=args.output,
-                output_json=args.json,
-                save_raw=save_raw,
-                save_mssql=save_mssql,
+            period_start = (
+                date.fromisoformat(args.start)
+                if args.start
+                else settings.default_period_start
             )
+            period_end = (
+                date.fromisoformat(args.end)
+                if args.end
+                else settings.default_period_end
+            )
+            for metric in metrics:
+                settings.value_type = metric
+                print(f"Метрика valueType={metric}")
+                sync_reads_by_period(
+                    settings,
+                    period_start,
+                    period_end,
+                    output_csv=args.output if len(metrics) == 1 else None,
+                    output_json=args.json if len(metrics) == 1 else None,
+                    save_raw=save_raw,
+                    save_mssql=save_mssql,
+                )
+            if len(metrics) > 1 and (args.output or args.json):
+                print(
+                    "Предупреждение: -o/--json при нескольких метриках не пишутся "
+                    "(в БД сохранены все метрики).",
+                    file=sys.stderr,
+                )
         return 0
     except AuthorTodayError as e:
         print(f"Ошибка: {e}", file=sys.stderr)

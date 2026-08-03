@@ -41,6 +41,12 @@ def _render_progress_body(progress: FetchProgress) -> None:
         period = f" · {progress.period_start} — {progress.period_end}"
     st.caption(
         f"book_id={progress.book_id}{period} · порции {progress.chunk_label}"
+        + (
+            f" · метрики: {', '.join(progress.value_types)}"
+            if progress.value_types
+            else ""
+        )
+        + (f" · сейчас: {progress.value_type}" if progress.value_type else "")
     )
     st.progress(progress.fraction)
     st.write(progress.stage)

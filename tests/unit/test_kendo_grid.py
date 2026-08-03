@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 from author_today.parse.kendo_grid import (
+    _parse_number,
     _values_for_date_indices,
     iter_scroll_row_indices,
     merge_scroll_slice,
     stats_table_from_maps,
 )
+
+
+def test_parse_number_int_and_float():
+    assert _parse_number("12") == 12.0
+    assert _parse_number("12,5") == 12.5
+    assert _parse_number("1 234.5") == 1234.5
+    assert _parse_number("") is None
+    assert _parse_number("abc") is None
 
 
 def test_merge_scroll_slice_two_passes():

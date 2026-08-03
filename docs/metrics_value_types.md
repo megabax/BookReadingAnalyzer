@@ -100,7 +100,7 @@ load_snapshot(..., metric="hit")  # default
 2. ~~`metric_value DECIMAL(12,2)`~~ ✅  
 3. ~~Миграция `fetch_runs.value_type` + backfill `'hit'`~~ ✅  
 4. ~~`save_snapshot` / `load_snapshot` учитывают метрику; default `hit`~~ ✅  
-5. Загрузка: явный выбор `hit` | `time` | `avgTime` в UI (+ опция «все три»).  
+5. ~~Загрузка: выбор `hit` | `time` | `avgTime` в UI / CLI~~ ✅  
 6. UI отчётов: селектор метрики, default `hit`.  
 7. Gaps / delete по метрике (частично: покрытие read_date уже по `value_type`).  
 8. Отдельная семантика analyze для `avgTime` (AVG / свои отчёты).
