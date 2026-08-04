@@ -20,7 +20,7 @@ from author_today.domain.value_types import (
     DEFAULT_VALUE_TYPE,
     normalize_value_types,
 )
-from author_today.errors import ConfigError, DeviceCodeRequired
+from author_today.errors import ConfigError, DeviceCodeRequired, format_exception_message
 from author_today.fetch.periods import needs_monthly_chunks, split_period_into_months
 from author_today.pipeline.sync_reads import _auth_provider, _load_and_persist_period
 from config.settings import Settings, ensure_data_dirs
@@ -494,7 +494,11 @@ class FetchJob:
             if self._cancel.is_set() or "отменен" in str(exc).lower():
                 self._update(status="cancelled", stage="Отменено", error=None)
             else:
-                self._update(status="error", stage="Ошибка загрузки", error=str(exc))
+                self._update(
+                    status="error",
+                    stage="Ошибка загрузки",
+                    error=format_exception_message(exc),
+                )
         finally:
             driver = self._driver
             self._driver = None

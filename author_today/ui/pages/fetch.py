@@ -240,6 +240,9 @@ class FetchPage(Page):
 
         if progress.status == "error":
             st.error(progress.error or "Ошибка загрузки")
+            if progress.error:
+                with st.expander("Текст ошибки (можно скопировать)", expanded=True):
+                    st.code(progress.error, language=None)
             if st.button("Закрыть", key="fetch_page_dismiss_error"):
                 job.dismiss()
                 clear_job_binding()

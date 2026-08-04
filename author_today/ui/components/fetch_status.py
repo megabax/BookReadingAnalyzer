@@ -146,6 +146,9 @@ def render_fetch_status_banner(*, report_cache: ReportCache | None = None) -> No
 
     if progress.status == "error":
         st.error(progress.error or progress.stage or "Ошибка загрузки")
+        if progress.error:
+            with st.expander("Текст ошибки (можно скопировать)", expanded=False):
+                st.code(progress.error, language=None)
         if st.button("Скрыть", key="fetch_banner_dismiss_error"):
             job.dismiss()
             clear_job_binding()
