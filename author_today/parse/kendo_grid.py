@@ -434,6 +434,11 @@ def _locked_scroll_pairs(locked, scroll) -> list[tuple[str, object]]:
 
 
 def _extract_kendo_split(grid, driver: WebDriver) -> StatsTable:
+    # Быстрый путь: вся матрица из Kendo dataSource без DOM-прокруток.
+    ds_table = _extract_kendo_datasource(driver, grid)
+    if ds_table and ds_table.rows and ds_table.dates:
+        return ds_table
+
     locked_els = grid.find_elements(By.CSS_SELECTOR, ".k-grid-content-locked")
     scroll_els = grid.find_elements(By.CSS_SELECTOR, ".k-grid-content.k-auto-scrollable")
     if not scroll_els:
@@ -446,13 +451,8 @@ def _extract_kendo_split(grid, driver: WebDriver) -> StatsTable:
     header = _header_scroll_el(grid)
 
     if locked and scroll:
-        ds_table = _extract_kendo_datasource(driver, grid)
         dom_table = _extract_via_dom_scroll(driver, grid, locked, scroll, header)
-        if ds_table and dom_table:
-            return ds_table if len(ds_table.rows) >= len(dom_table.rows) else dom_table
-        if ds_table:
-            return ds_table
-        if dom_table:
+        if dom_table and dom_table.rows:
             return dom_table
 
     result = StatsTable()
@@ -465,7 +465,7 @@ def _extract_kendo_split(grid, driver: WebDriver) -> StatsTable:
         for label, s_row in _locked_scroll_pairs(locked, scroll):
             s_cells = _cell_texts(s_row)
             values = [_parse_number(v) for v in s_cells]
-            row_data: dict[str, str | int | None] = {"chapter": label}
+            row_data: dict[str, str | int | float | None] = {"chapter": label}
             for i, d in enumerate(result.dates):
                 row_data[d] = values[i] if i < len(values) else None
             result.rows.append(row_data)

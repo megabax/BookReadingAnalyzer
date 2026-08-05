@@ -106,3 +106,73 @@ def test_vertical_passes_collect_chapters_in_order():
     table = stats_table_from_maps(date_order, chapter_values, chapter_order)
     assert [row["chapter"] for row in table.rows] == ["Глава 1", "Глава 16"]
     assert table.rows[1]["01.06"] == 2
+
+
+def test_extract_kendo_split_prefers_datasource_skips_dom_scroll():
+    """Если dataSource уже дал строки — DOM-прокрутку не запускаем."""
+    from unittest.mock import MagicMock, patch
+
+    from author_today.domain.models import StatsTable
+    from author_today.parse.kendo_grid import _extract_kendo_split
+
+    ds = StatsTable(
+        dates=["01.06", "02.06"],
+        rows=[{"chapter": "Глава 1", "01.06": 1, "02.06": 2}],
+    )
+    grid = MagicMock()
+    driver = MagicMock()
+
+    with (
+        patch(
+            "author_today.parse.kendo_grid._extract_kendo_datasource",
+            return_value=ds,
+        ) as mock_ds,
+        patch(
+            "author_today.parse.kendo_grid._extract_via_dom_scroll",
+        ) as mock_dom,
+    ):
+        result = _extract_kendo_split(grid, driver)
+
+    assert result is ds
+    mock_ds.assert_called_once_with(driver, grid)
+    mock_dom.assert_not_called()
+    grid.find_elements.assert_not_called()
+
+
+def test_extract_kendo_split_falls_back_to_dom_when_datasource_empty():
+    from unittest.mock import MagicMock, patch
+
+    from author_today.domain.models import StatsTable
+    from author_today.parse.kendo_grid import _extract_kendo_split
+
+    dom = StatsTable(
+        dates=["01.06"],
+        rows=[{"chapter": "Глава 1", "01.06": 10}],
+    )
+    grid = MagicMock()
+    locked = MagicMock()
+    scroll = MagicMock()
+    grid.find_elements.side_effect = [
+        [locked],  # .k-grid-content-locked
+        [scroll],  # .k-grid-content.k-auto-scrollable
+    ]
+    driver = MagicMock()
+
+    with (
+        patch(
+            "author_today.parse.kendo_grid._extract_kendo_datasource",
+            return_value=None,
+        ),
+        patch(
+            "author_today.parse.kendo_grid._header_scroll_el",
+            return_value=None,
+        ),
+        patch(
+            "author_today.parse.kendo_grid._extract_via_dom_scroll",
+            return_value=dom,
+        ) as mock_dom,
+    ):
+        result = _extract_kendo_split(grid, driver)
+
+    assert result is dom
+    mock_dom.assert_called_once()
