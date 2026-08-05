@@ -18,6 +18,7 @@ DailyChapterMatrix = dict[date, dict[int, tuple[str, MetricValue]]]
 
 _RUNS_FETCHED_AT_FILTER = "fr.work_id = ? AND fr.fetched_at >= ? AND fr.fetched_at <= ?"
 _RUNS_PERIOD_FILTER = "fr.work_id = ? AND fr.period_start = ? AND fr.period_end = ?"
+_RUNS_BY_ID_FILTER = "fr.work_id = ? AND fr.id = ?"
 
 
 @dataclass(frozen=True)
@@ -478,6 +479,17 @@ class MssqlReadRepository:
         params = (book_id, period_start, period_end)
         preview = self.preview_delete_runs_by_period(book_id, period_start, period_end)
         return self._delete_runs(_RUNS_PERIOD_FILTER, params, preview)
+
+    def preview_delete_run(self, book_id: int, run_id: int) -> DeleteRunsPreview:
+        """Превью удаления одного fetch_run (с проверкой work_id = book_id)."""
+        params = (book_id, run_id)
+        return self._preview_delete_runs(_RUNS_BY_ID_FILTER, params)
+
+    def delete_run(self, book_id: int, run_id: int) -> DeleteRunsResult:
+        """Удалить один fetch_run и связанные chapter_reads."""
+        params = (book_id, run_id)
+        preview = self.preview_delete_run(book_id, run_id)
+        return self._delete_runs(_RUNS_BY_ID_FILTER, params, preview)
 
     @staticmethod
     def _chapter_rows(snapshot: ReadSnapshot) -> list[tuple]:

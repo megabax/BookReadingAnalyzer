@@ -39,7 +39,7 @@ class StreamlitApp:
     @staticmethod
     def _build_default_pages(settings: Settings, cache: ReportCache) -> list[Page]:
         book_picker = BookPicker(settings)
-        load_info = BookLoadInfoPanel(settings)
+        load_info = BookLoadInfoPanel(settings, report_cache=cache)
         return [
             FunnelPage(settings, book_picker, cache),
             ComparePage(settings, book_picker, cache),

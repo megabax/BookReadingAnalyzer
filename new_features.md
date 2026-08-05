@@ -7,10 +7,10 @@
 
 ## Высокая польза
 
-### 1. Удаление run из UI
+### 1. Удаление run из UI ✅
 
-Кнопка с превью (какие `fetch_runs` / сколько `chapter_reads`) и подтверждением.
-Сейчас только `scripts/delete_runs.py`. Уже упоминалось в docs как «не MVP», но закрывает боль дублей загрузок.
+На вкладке «Загрузка»: expander «Удалить загрузку» — выбор `run_id`, превью числа `chapter_reads`, подтверждение.
+Удаляются `fetch_runs` + связанные `chapter_reads` (`services/runs.py`, `MssqlReadRepository.delete_run`).
 
 ### 2. Календарь покрытия данных
 
@@ -93,7 +93,7 @@ A / B / C или «этот месяц vs средний за N месяцев»
 
 | Идея | Зацепка в проекте |
 |------|-------------------|
-| Удаление run | `scripts/delete_runs.py`, `MssqlReadRepository.delete_runs_*` |
+| Удаление run | UI «Загрузка» + `services/runs.py`, `MssqlReadRepository.delete_run` |
 | Покрытие / gaps | `scripts/check_load_gaps.py`, `storage/load_gaps.py` |
 | Автозагрузка | `selenium_stats.py` / `author_today.cli`, `FetchJob` |
 | Multi-month merge | `pipeline/sync_reads.py`, ADR-005 |
