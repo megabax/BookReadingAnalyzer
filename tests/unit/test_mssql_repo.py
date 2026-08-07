@@ -276,3 +276,27 @@ def test_get_book_load_info(mock_connect_fn, repo: MssqlReadRepository):
     assert info.runs[0].value_type == "hit"
     span_sql = span_cursor.execute.call_args.args[0]
     assert "fr.value_type = ?" in span_sql
+
+
+@patch("author_today.storage.mssql_repo.connect")
+def test_update_book_title(mock_connect_fn, repo: MssqlReadRepository):
+    conn, cursor = _mock_connect()
+    cursor.rowcount = 1
+    mock_connect_fn.return_value.__enter__.return_value = conn
+
+    assert repo.update_book_title(172953, "Рыба") is True
+
+    sql, params = cursor.execute.call_args.args
+    assert "UPDATE dbo.books" in sql
+    assert params == ("Рыба", 172953)
+    conn.commit.assert_called_once()
+
+
+@patch("author_today.storage.mssql_repo.connect")
+def test_update_book_title_missing(mock_connect_fn, repo: MssqlReadRepository):
+    conn, cursor = _mock_connect()
+    cursor.rowcount = 0
+    mock_connect_fn.return_value.__enter__.return_value = conn
+
+    assert repo.update_book_title(999, None) is False
+

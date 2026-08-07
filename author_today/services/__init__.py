@@ -1,6 +1,11 @@
 """Сервисный слой для UI и будущего API (тонкая обёртка над analyze/storage)."""
 
-from author_today.services.books import BookOption, load_book_catalog, load_book_data_info
+from author_today.services.books import (
+    BookOption,
+    load_book_catalog,
+    load_book_data_info,
+    update_book_title,
+)
 from author_today.services.fetch import FetchResult, fetch_reads_for_period
 from author_today.storage.mssql_repo import BookLoadInfo
 from author_today.services.reports import (
@@ -21,4 +26,5 @@ __all__ = [
     "load_funnel_compare",
     "load_read_snapshot",
     "list_raw_snapshots",
+    "update_book_title",
 ]

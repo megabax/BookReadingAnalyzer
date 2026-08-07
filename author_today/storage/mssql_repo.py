@@ -298,6 +298,22 @@ class MssqlReadRepository:
             columns = [col[0] for col in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
+    def update_book_title(self, book_id: int, title: str | None) -> bool:
+        """Обновить заголовок книги. `None`/пустая строка → NULL. False, если id нет."""
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE dbo.books
+                SET title = ?
+                WHERE id = ?
+                """,
+                (title, book_id),
+            )
+            updated = cursor.rowcount > 0
+            conn.commit()
+            return updated
+
     def load_snapshot(
         self,
         book_id: int,

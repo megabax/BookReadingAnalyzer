@@ -47,7 +47,7 @@ JSON в `data/raw/` — **устаревший** промежуточный фо
 | Колонка | Тип | Описание |
 |---------|-----|----------|
 | `id` | INT PK | = `book_id` / workId |
-| `title` | NVARCHAR(300) NULL | Не заполняется автоматически |
+| `title` | NVARCHAR(300) NULL | Не заполняется при fetch; правится вручную в UI («Загрузка» → «Название книги») |
 | `created_at` | DATETIME2 | UTC |
 
 ### `dbo.fetch_runs`

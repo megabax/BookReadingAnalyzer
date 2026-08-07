@@ -5,7 +5,12 @@ from __future__ import annotations
 import streamlit as st
 
 from author_today.errors import AuthorTodayError
-from author_today.services.books import load_book_data_info
+from author_today.services.books import (
+    MAX_BOOK_TITLE_LEN,
+    load_book_catalog,
+    load_book_data_info,
+    update_book_title,
+)
 from author_today.services.runs import delete_run, preview_delete_run
 from author_today.storage.mssql_repo import LoadedRun
 from author_today.ui.cache import ReportCache
@@ -13,7 +18,7 @@ from config.settings import Settings
 
 
 class BookLoadInfoPanel:
-    """Показывает покрытие chapter_reads / fetch_runs; удаление run (SRP)."""
+    """Показывает покрытие chapter_reads / fetch_runs; название книги; удаление run."""
 
     def __init__(
         self,
@@ -26,6 +31,8 @@ class BookLoadInfoPanel:
     def render(self, book_id: int) -> None:
         if not self._settings.has_mssql():
             return
+
+        self._render_edit_title(book_id)
 
         info = load_book_data_info(self._settings, book_id)
         if info is None:
@@ -64,6 +71,44 @@ class BookLoadInfoPanel:
             self._render_delete_run(book_id, info.runs)
         elif info.read_date_min:
             st.caption("Записи fetch_runs не найдены, но строки chapter_reads есть.")
+
+    def _render_edit_title(self, book_id: int) -> None:
+        catalog = load_book_catalog(self._settings)
+        current = next(
+            (book.title for book in catalog if book.book_id == book_id),
+            None,
+        )
+        book_known = any(book.book_id == book_id for book in catalog)
+
+        with st.expander("Название книги", expanded=False):
+            if not book_known:
+                st.caption(
+                    f"book_id={book_id} ещё нет в `dbo.books`. "
+                    "Сначала загрузите статистику — запись появится автоматически."
+                )
+                return
+
+            st.caption(
+                "Заголовок хранится в `dbo.books.title` и показывается в списках. "
+                "Пустое поле очищает название."
+            )
+            new_title = st.text_input(
+                "Заголовок",
+                value=current or "",
+                max_chars=MAX_BOOK_TITLE_LEN,
+                key=f"edit_book_title_{book_id}",
+            )
+            if st.button("Сохранить название", key=f"save_book_title_{book_id}"):
+                try:
+                    saved = update_book_title(self._settings, book_id, new_title)
+                except AuthorTodayError as exc:
+                    st.error(str(exc))
+                    return
+                if saved:
+                    st.success(f"Сохранено: «{saved}»")
+                else:
+                    st.success("Название очищено.")
+                st.rerun()
 
     def _render_delete_run(self, book_id: int, runs: tuple[LoadedRun, ...]) -> None:
         with st.expander("Удалить загрузку (fetch_run)", expanded=False):

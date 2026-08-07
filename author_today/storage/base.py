@@ -50,6 +50,9 @@ class ReadRepository(Protocol):
     def list_books(self) -> list[dict]:
         """Книги из каталога БД."""
 
+    def update_book_title(self, book_id: int, title: str | None) -> bool:
+        """Обновить `dbo.books.title`. Пустой title → NULL. False, если книги нет."""
+
     def load_snapshot(
         self,
         book_id: int,
