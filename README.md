@@ -126,7 +126,7 @@ python scripts/report_funnel_compare.py --book-id 323389 --base-order 2 ^
 
 ## Веб-интерфейс (Streamlit)
 
-Рабочие вкладки: загрузка, воронка, сравнение периодов.
+Рабочие вкладки: воронка, сравнение периодов, тренд дочитывания, загрузка.
 
 ```bat
 pip install -e ".[ui]"
@@ -139,3 +139,46 @@ streamlit run streamlit_app.py
 
 - [`refactoring_plan.md`](refactoring_plan.md) — план рефакторинга
 - [`docs/`](docs/README.md) — глоссарий, ADR, known issues, стратегия тестов
+
+---
+
+## Автор
+
+**Имя** · Шуравин Александр  
+**Роль** · Python developer  
+**О проекте** · личный инструмент для анализа прочтений на author.today (Selenium → MS SQL → отчёты / Streamlit)
+
+### Контакты
+
+| | |
+|---|---|
+| Telegram | [@ShuravinAlex](https://t.me/ShuravinAlex) |
+| GitHub | [github.com/megabax](https://github.com/megabax) |
+| TenChat | [tenchat.ru/5244130](https://tenchat.ru/5244130) |
+| Habr | [habr.com/ru/users/megabax](https://habr.com/ru/users/megabax/) |
+
+### Для работодателя / рекрутера
+
+Кратко о стеке **этого** репозитория: Python, Selenium, MS SQL (pyodbc), pandas, Streamlit, pytest; CLI + фоновые jobs; разделение domain / storage / analyze / UI.
+
+| | |
+|---|---|
+| Резюме (PDF) | [Google Drive](https://drive.google.com/file/d/1DLPi60uDSgN74iixhaLfZdzF9_WFVpF5/view?usp=drive_link) |
+| Резюме (HH) | [hh.ru](https://izhevsk.hh.ru/resume/8ad4938fff10ad778c0039ed1f446b617a7149) |
+| Готовность к работе | удалённо (предпочтительно); гибрид / офис — Ижевск |
+| Целевая роль | ML / AI Engineer (LLM, CV, R&D); дата-сайентист / разработчик |
+
+**Стек (из опыта, кратко):**
+
+| Область | Технологии |
+|---------|------------|
+| LLM / AI | OpenAI-compatible API, DeepSeek, LangChain, RAG, embeddings (sentence-transformers, BGE), Ollama (Llama/Mistral), промпт-инжиниринг, privacy / 152-ФЗ (Natasha NER) |
+| Computer Vision | PyTorch, OpenCV, YOLO, ONNX, OCR (Tesseract), Librosa |
+| Backend / API | Python, FastAPI, asyncio, C#, REST, RabbitMQ |
+| Данные | PostgreSQL, MS SQL, SQLite, Qdrant, MinIO / S3, pandas, NumPy |
+| ETL / MLOps | Airflow, Docker, Linux, Prometheus, Grafana, n8n |
+| Качество кода | Git, Pytest, UML / ООП |
+
+Одной строкой: `Python · PyTorch · YOLO · OpenCV · FastAPI · Docker · PostgreSQL · Qdrant · LangChain / RAG · Airflow · C# · MS SQL · Linux`
+
+> Вопросы по коду и резюме — удобнее в Telegram.
