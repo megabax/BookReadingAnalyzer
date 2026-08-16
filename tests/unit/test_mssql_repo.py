@@ -300,3 +300,58 @@ def test_update_book_title_missing(mock_connect_fn, repo: MssqlReadRepository):
 
     assert repo.update_book_title(999, None) is False
 
+
+@patch("author_today.storage.mssql_repo.connect")
+def test_get_fetch_run_detail(mock_connect_fn, repo: MssqlReadRepository):
+    conn, cursor = _mock_connect(
+        fetchall_results=[
+            [
+                (
+                    42,
+                    172953,
+                    date(2025, 7, 1),
+                    date(2025, 7, 31),
+                    datetime(2026, 6, 1, 12, 0),
+                    "hit",
+                    2,
+                    "Глава 2",
+                    date(2025, 7, 2),
+                    50,
+                ),
+                (
+                    42,
+                    172953,
+                    date(2025, 7, 1),
+                    date(2025, 7, 31),
+                    datetime(2026, 6, 1, 12, 0),
+                    "hit",
+                    1,
+                    "Глава 1",
+                    date(2025, 7, 1),
+                    100,
+                ),
+            ]
+        ],
+    )
+    mock_connect_fn.return_value.__enter__.return_value = conn
+
+    detail = repo.get_fetch_run_detail(172953, 42)
+
+    assert detail is not None
+    assert detail.run_id == 42
+    assert detail.book_id == 172953
+    assert detail.value_type == "hit"
+    assert len(detail.rows) == 2
+    assert detail.rows[0].chapter_name == "Глава 2"
+    sql = cursor.execute.call_args.args[0]
+    assert "ORDER BY" in sql
+    assert "chapter_order" in sql
+
+
+@patch("author_today.storage.mssql_repo.connect")
+def test_get_fetch_run_detail_missing(mock_connect_fn, repo: MssqlReadRepository):
+    conn, cursor = _mock_connect(fetchall_results=[[]])
+    mock_connect_fn.return_value.__enter__.return_value = conn
+
+    assert repo.get_fetch_run_detail(1, 99) is None
+

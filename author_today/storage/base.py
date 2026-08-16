@@ -14,6 +14,7 @@ if TYPE_CHECKING:
         DailyChapterMatrix,
         DeleteRunsPreview,
         DeleteRunsResult,
+        FetchRunDetail,
         RunDateCoverage,
     )
 
@@ -52,6 +53,9 @@ class ReadRepository(Protocol):
 
     def update_book_title(self, book_id: int, title: str | None) -> bool:
         """Обновить `dbo.books.title`. Пустой title → NULL. False, если книги нет."""
+
+    def get_fetch_run_detail(self, book_id: int, run_id: int) -> FetchRunDetail | None:
+        """Один fetch_run + chapter_reads (порядок глав, затем даты). None если run не найден."""
 
     def load_snapshot(
         self,

@@ -14,5 +14,6 @@
 | [pre_refactor_checklist.md](pre_refactor_checklist.md) | Чеклист перед каждой фазой |
 | [ui_streamlit.md](ui_streamlit.md) | Веб-интерфейс: Streamlit, экраны, установка |
 | [metrics_value_types.md](metrics_value_types.md) | Метрики hit / time / avgTime; `fetch_runs.value_type` |
+| [kendo_chapter_row_filter.md](kendo_chapter_row_filter.md) | Отказ от whitelist названий глав при парсинге Kendo |
 
 **Порядок чтения:** glossary → architecture_baseline → data_contracts → known_issues → decisions → testing_strategy.

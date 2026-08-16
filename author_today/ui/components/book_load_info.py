@@ -50,23 +50,34 @@ class BookLoadInfoPanel:
             )
 
         if info.runs:
-            st.dataframe(
-                [
+            rows = []
+            for run in info.runs:
+                link = f"?view=run&book_id={book_id}&run_id={run.run_id}"
+                rows.append(
                     {
                         "run_id": run.run_id,
+                        "данные": link,
                         "метрика": run.value_type,
                         "период с": run.period_start,
                         "период по": run.period_end,
                         "загружено": run.fetched_at.strftime("%Y-%m-%d %H:%M"),
                     }
-                    for run in info.runs
-                ],
+                )
+            st.dataframe(
+                rows,
                 hide_index=True,
                 width="stretch",
+                column_config={
+                    "данные": st.column_config.LinkColumn(
+                        "данные",
+                        help="Открыть chapter_reads этого run",
+                        display_text="открыть",
+                    ),
+                },
             )
             st.caption(
                 "В отчётах суммируются run'ы выбранной метрики (сейчас по умолчанию hit), "
-                "попадающие в даты read_date."
+                "попадающие в даты read_date. Ссылка «открыть» — просмотр строк run."
             )
             self._render_delete_run(book_id, info.runs)
         elif info.read_date_min:

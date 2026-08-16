@@ -13,7 +13,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from author_today.domain.models import StatsTable
 
 DATE_RE = re.compile(r"^\d{2}\.\d{2}$")
-CHAPTER_MARKERS = ("глава", "интерлюдия", "страница книги", "вместо эпилога", "часть")
+CHAPTER_MARKERS = (
+    "глава",
+    "интерлюдия",
+    "страница книги",
+    "эпилог",  # «Эпилог» и «Вместо эпилога»
+    "вместо эпилога",
+    "часть",
+)
 SCROLL_SETTLE_S = 0.2
 MAX_SCROLL_PASSES = 40
 MAX_VERTICAL_SCROLL_PASSES = 50

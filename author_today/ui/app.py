@@ -13,6 +13,7 @@ from author_today.ui.components.sidebar import DataSourceSidebar
 from author_today.ui.pages.compare import ComparePage
 from author_today.ui.pages.fetch import FetchPage
 from author_today.ui.pages.funnel import FunnelPage
+from author_today.ui.pages.run_detail import RunDetailPage
 from author_today.ui.pages.trend import TrendPage
 from config.settings import Settings
 
@@ -55,10 +56,30 @@ class StreamlitApp:
         self._sidebar.render()
         render_fetch_status_banner(report_cache=self._report_cache)
 
+        if self._try_render_run_detail():
+            return
+
         tabs = st.tabs([page.title for page in self._pages])
         for tab, page in zip(tabs, self._pages):
             with tab:
                 page.render()
+
+    def _try_render_run_detail(self) -> bool:
+        """Query ?view=run&book_id=&run_id= — экран одного fetch_run."""
+        if st.query_params.get("view") != "run":
+            return False
+        try:
+            book_id = int(st.query_params.get("book_id", ""))
+            run_id = int(st.query_params.get("run_id", ""))
+        except (TypeError, ValueError):
+            st.error("Некорректные параметры просмотра run (book_id / run_id).")
+            if st.button("Назад", key="run_detail_bad_params_back"):
+                st.query_params.clear()
+                st.rerun()
+            return True
+
+        RunDetailPage(self._settings, book_id=book_id, run_id=run_id).render()
+        return True
 
 
 def create_app(settings: Settings | None = None) -> StreamlitApp:

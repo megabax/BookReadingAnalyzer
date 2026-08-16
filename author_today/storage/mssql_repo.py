@@ -63,6 +63,27 @@ class RunDateCoverage:
     value_type: str = DEFAULT_VALUE_TYPE
 
 
+@dataclass(frozen=True)
+class FetchRunReadRow:
+    chapter_order: int | None
+    chapter_name: str
+    read_date: date
+    metric_value: MetricValue | None
+
+
+@dataclass(frozen=True)
+class FetchRunDetail:
+    """Один fetch_run и все его chapter_reads (порядок: глава → дата)."""
+
+    run_id: int
+    book_id: int
+    period_start: date
+    period_end: date
+    fetched_at: datetime
+    value_type: str
+    rows: tuple[FetchRunReadRow, ...]
+
+
 class MssqlReadRepository:
     """Сохранение снимков прочтений в MS SQL Server (реализует ReadRepository)."""
 
@@ -297,6 +318,84 @@ class MssqlReadRepository:
             )
             columns = [col[0] for col in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def get_fetch_run_detail(self, book_id: int, run_id: int) -> FetchRunDetail | None:
+        """Один fetch_run и строки chapter_reads; главы по chapter_order, затем read_date."""
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT
+                    fr.id,
+                    fr.work_id,
+                    fr.period_start,
+                    fr.period_end,
+                    fr.fetched_at,
+                    fr.value_type,
+                    cr.chapter_order,
+                    cr.chapter_name,
+                    cr.read_date,
+                    cr.metric_value
+                FROM dbo.fetch_runs fr
+                LEFT JOIN dbo.chapter_reads cr ON cr.run_id = fr.id
+                WHERE fr.work_id = ?
+                  AND fr.id = ?
+                ORDER BY
+                    CASE WHEN cr.chapter_order IS NULL THEN 1 ELSE 0 END,
+                    cr.chapter_order,
+                    cr.read_date,
+                    cr.chapter_name
+                """,
+                book_id,
+                run_id,
+            )
+            raw_rows = cursor.fetchall()
+            if not raw_rows:
+                return None
+
+            first = raw_rows[0]
+            fetched_raw = first[4]
+            if isinstance(fetched_raw, datetime):
+                fetched_at = fetched_raw
+            else:
+                fetched_at = datetime.fromisoformat(str(fetched_raw).replace("Z", "+00:00"))
+            period_start = first[2]
+            period_end = first[3]
+            if not isinstance(period_start, date):
+                period_start = date.fromisoformat(str(period_start)[:10])
+            if not isinstance(period_end, date):
+                period_end = date.fromisoformat(str(period_end)[:10])
+
+            reads: list[FetchRunReadRow] = []
+            for row in raw_rows:
+                chapter_name = row[7]
+                read_date = row[8]
+                if chapter_name is None or read_date is None:
+                    continue
+                if not isinstance(read_date, date):
+                    read_date = date.fromisoformat(str(read_date)[:10])
+                order_raw = row[6]
+                chapter_order = int(order_raw) if order_raw is not None else None
+                reads.append(
+                    FetchRunReadRow(
+                        chapter_order=chapter_order,
+                        chapter_name=str(chapter_name),
+                        read_date=read_date,
+                        metric_value=coerce_metric_value(row[9]),
+                    )
+                )
+
+            return FetchRunDetail(
+                run_id=int(first[0]),
+                book_id=int(first[1]),
+                period_start=period_start,
+                period_end=period_end,
+                fetched_at=fetched_at,
+                value_type=normalize_value_type(
+                    str(first[5] or DEFAULT_VALUE_TYPE)
+                ),
+                rows=tuple(reads),
+            )
 
     def update_book_title(self, book_id: int, title: str | None) -> bool:
         """Обновить заголовок книги. `None`/пустая строка → NULL. False, если id нет."""

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from author_today.errors import ConfigError, DataNotFoundError
 from author_today.storage.factory import get_repository
-from author_today.storage.mssql_repo import DeleteRunsPreview, DeleteRunsResult
+from author_today.storage.mssql_repo import (
+    DeleteRunsPreview,
+    DeleteRunsResult,
+    FetchRunDetail,
+)
 from config.settings import Settings
 
 
@@ -45,3 +49,19 @@ def delete_run(
             f"Не удалось удалить run_id={run_id} для book_id={book_id}"
         )
     return result
+
+
+def load_fetch_run_detail(
+    settings: Settings,
+    book_id: int,
+    run_id: int,
+) -> FetchRunDetail:
+    """Данные одного fetch_run (главы по chapter_order)."""
+    _require_mssql(settings)
+    detail = get_repository(settings).get_fetch_run_detail(book_id, run_id)
+    if detail is None:
+        raise DataNotFoundError(
+            f"run_id={run_id} не найден для book_id={book_id} "
+            "(или принадлежит другой книге)."
+        )
+    return detail
