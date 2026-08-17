@@ -51,30 +51,46 @@ class TrendPresenter:
 
 
 class TrendChart:
-    """График % от базы по месяцам."""
+    """Два ряда на одном графике: % от базы (слева) и просмотры главы (справа)."""
 
     def render(self, report: CompletionTrendReport, *, y_title: str) -> None:
         chart_df = pd.DataFrame(
             {
                 "month": [p.month_label for p in report.points],
                 "pct": [float(p.pct_of_baseline) for p in report.points],
-                "views": [p.target_views for p in report.points],
-                "baseline": [p.baseline_views for p in report.points],
+                "views": [float(p.target_views) for p in report.points],
+                "baseline": [float(p.baseline_views) for p in report.points],
             }
         )
+        views_title = f"Просмотры «{report.target_chapter_name}»"
+        base = alt.Chart(chart_df).encode(
+            x=alt.X("month:N", title="Месяц", sort=None),
+            tooltip=[
+                alt.Tooltip("month:N", title="Месяц"),
+                alt.Tooltip("pct:Q", title=y_title, format=".1f"),
+                alt.Tooltip("views:Q", title=views_title, format=",.0f"),
+                alt.Tooltip("baseline:Q", title="База", format=",.0f"),
+            ],
+        )
+        pct_line = base.mark_line(point=True, color="#1f77b4").encode(
+            y=alt.Y(
+                "pct:Q",
+                title=y_title,
+                scale=alt.Scale(zero=False),
+                axis=alt.Axis(titleColor="#1f77b4"),
+            ),
+        )
+        views_line = base.mark_line(point=True, color="#ff7f0e").encode(
+            y=alt.Y(
+                "views:Q",
+                title=views_title,
+                scale=alt.Scale(zero=True),
+                axis=alt.Axis(titleColor="#ff7f0e", orient="right"),
+            ),
+        )
         chart = (
-            alt.Chart(chart_df)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X("month:N", title="Месяц", sort=None),
-                y=alt.Y("pct:Q", title=y_title, scale=alt.Scale(zero=False)),
-                tooltip=[
-                    alt.Tooltip("month:N", title="Месяц"),
-                    alt.Tooltip("pct:Q", title=y_title, format=".1f"),
-                    alt.Tooltip("views:Q", title="Просмотры"),
-                    alt.Tooltip("baseline:Q", title="База"),
-                ],
-            )
+            alt.layer(pct_line, views_line)
+            .resolve_scale(y="independent")
             .properties(height=420)
         )
         st.altair_chart(chart, use_container_width=True)

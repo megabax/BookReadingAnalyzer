@@ -148,7 +148,9 @@ class TrendPage(Page):
             help=report.points[-1].month_label,
         )
 
-        st.markdown(f"**{pct_col}** по месяцам")
+        st.markdown(
+            f"**{pct_col}** (слева) и просмотры «{report.target_chapter_name}» (справа)"
+        )
         self._chart.render(report, y_title=pct_col)
 
         table_df = self._presenter.dataframe(report)
@@ -170,8 +172,9 @@ class TrendPage(Page):
         )
 
         st.caption(
-            "Метрика — сумма просмотров за месяц (как воронка), не среднее дневных %. "
-            "Повторные загрузки того же периода суммируются в БД."
+            "Синяя линия — % от базы (левая ось); оранжевая — сумма просмотров "
+            "выбранной главы за месяц (правая ось). "
+            "Метрика как у воронки; повторные загрузки того же периода суммируются в БД."
         )
 
     def _pick_target_chapter(
