@@ -10,6 +10,7 @@ from author_today.domain.models import ReadSnapshot
 if TYPE_CHECKING:
     from author_today.storage.mssql_repo import (
         BookLoadInfo,
+        BookNote,
         ChapterViewsRow,
         DailyChapterMatrix,
         DeleteRunsPreview,
@@ -53,6 +54,31 @@ class ReadRepository(Protocol):
 
     def update_book_title(self, book_id: int, title: str | None) -> bool:
         """Обновить `dbo.books.title`. Пустой title → NULL. False, если книги нет."""
+
+    def list_book_notes(
+        self,
+        book_id: int,
+        *,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[BookNote]:
+        """Заметки книги (по возрастанию note_date)."""
+
+    def create_book_note(self, book_id: int, note_date: date, body: str) -> BookNote:
+        """Создать заметку; при необходимости создать строку в dbo.books."""
+
+    def update_book_note(
+        self,
+        book_id: int,
+        note_id: int,
+        *,
+        note_date: date,
+        body: str,
+    ) -> BookNote | None:
+        """Обновить заметку. None, если не найдена для этой книги."""
+
+    def delete_book_note(self, book_id: int, note_id: int) -> bool:
+        """Удалить заметку. False, если не найдена."""
 
     def get_fetch_run_detail(self, book_id: int, run_id: int) -> FetchRunDetail | None:
         """Один fetch_run + chapter_reads (порядок глав, затем даты). None если run не найден."""

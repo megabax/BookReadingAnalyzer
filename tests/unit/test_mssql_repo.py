@@ -355,3 +355,48 @@ def test_get_fetch_run_detail_missing(mock_connect_fn, repo: MssqlReadRepository
 
     assert repo.get_fetch_run_detail(1, 99) is None
 
+
+@patch("author_today.storage.mssql_repo.connect")
+def test_list_book_notes(mock_connect_fn, repo: MssqlReadRepository):
+    conn, cursor = _mock_connect(
+        fetchall_results=[
+            [
+                (1, 172953, date(2026, 7, 1), "реклама"),
+                (2, 172953, date(2026, 7, 15), "обложка"),
+            ]
+        ],
+    )
+    mock_connect_fn.return_value.__enter__.return_value = conn
+
+    notes = repo.list_book_notes(172953, date_from=date(2026, 7, 1), date_to=date(2026, 7, 31))
+
+    assert len(notes) == 2
+    assert notes[0].body == "реклама"
+    sql = cursor.execute.call_args.args[0]
+    assert "dbo.book_notes" in sql
+
+
+@patch("author_today.storage.mssql_repo.connect")
+def test_create_book_note(mock_connect_fn, repo: MssqlReadRepository):
+    conn, cursor = _mock_connect(
+        fetchone_results=[(7, 172953, date(2026, 7, 1), "текст")],
+    )
+    mock_connect_fn.return_value.__enter__.return_value = conn
+
+    note = repo.create_book_note(172953, date(2026, 7, 1), "текст")
+
+    assert note.note_id == 7
+    assert note.body == "текст"
+    assert cursor.execute.call_count == 2
+    conn.commit.assert_called_once()
+
+
+@patch("author_today.storage.mssql_repo.connect")
+def test_delete_book_note(mock_connect_fn, repo: MssqlReadRepository):
+    conn, cursor = _mock_connect()
+    cursor.rowcount = 1
+    mock_connect_fn.return_value.__enter__.return_value = conn
+
+    assert repo.delete_book_note(172953, 7) is True
+    conn.commit.assert_called_once()
+

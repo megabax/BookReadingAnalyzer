@@ -64,6 +64,14 @@ class RunDateCoverage:
 
 
 @dataclass(frozen=True)
+class BookNote:
+    note_id: int
+    book_id: int
+    note_date: date
+    body: str
+
+
+@dataclass(frozen=True)
 class FetchRunReadRow:
     chapter_order: int | None
     chapter_name: str
@@ -412,6 +420,134 @@ class MssqlReadRepository:
             updated = cursor.rowcount > 0
             conn.commit()
             return updated
+
+    def list_book_notes(
+        self,
+        book_id: int,
+        *,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[BookNote]:
+        """Заметки книги по возрастанию даты."""
+        clauses = ["book_id = ?"]
+        params: list[object] = [book_id]
+        if date_from is not None:
+            clauses.append("note_date >= ?")
+            params.append(date_from)
+        if date_to is not None:
+            clauses.append("note_date <= ?")
+            params.append(date_to)
+        where = " AND ".join(clauses)
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""
+                SELECT id, book_id, note_date, body
+                FROM dbo.book_notes
+                WHERE {where}
+                ORDER BY note_date, id
+                """,
+                tuple(params),
+            )
+            notes: list[BookNote] = []
+            for row in cursor.fetchall():
+                note_date = row[2]
+                if not isinstance(note_date, date):
+                    note_date = date.fromisoformat(str(note_date)[:10])
+                notes.append(
+                    BookNote(
+                        note_id=int(row[0]),
+                        book_id=int(row[1]),
+                        note_date=note_date,
+                        body=str(row[3]),
+                    )
+                )
+            return notes
+
+    def create_book_note(self, book_id: int, note_date: date, body: str) -> BookNote:
+        """Создать заметку; book_id появится в dbo.books при отсутствии."""
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                IF NOT EXISTS (SELECT 1 FROM dbo.books WHERE id = ?)
+                    INSERT INTO dbo.books (id) VALUES (?)
+                """,
+                book_id,
+                book_id,
+            )
+            cursor.execute(
+                """
+                INSERT INTO dbo.book_notes (book_id, note_date, body)
+                OUTPUT INSERTED.id, INSERTED.book_id, INSERTED.note_date, INSERTED.body
+                VALUES (?, ?, ?)
+                """,
+                book_id,
+                note_date,
+                body,
+            )
+            row = cursor.fetchone()
+            conn.commit()
+            inserted_date = row[2]
+            if not isinstance(inserted_date, date):
+                inserted_date = date.fromisoformat(str(inserted_date)[:10])
+            return BookNote(
+                note_id=int(row[0]),
+                book_id=int(row[1]),
+                note_date=inserted_date,
+                body=str(row[3]),
+            )
+
+    def update_book_note(
+        self,
+        book_id: int,
+        note_id: int,
+        *,
+        note_date: date,
+        body: str,
+    ) -> BookNote | None:
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE dbo.book_notes
+                SET note_date = ?, body = ?, updated_at = SYSUTCDATETIME()
+                OUTPUT INSERTED.id, INSERTED.book_id, INSERTED.note_date, INSERTED.body
+                WHERE id = ? AND book_id = ?
+                """,
+                note_date,
+                body,
+                note_id,
+                book_id,
+            )
+            row = cursor.fetchone()
+            conn.commit()
+            if row is None:
+                return None
+            updated_date = row[2]
+            if not isinstance(updated_date, date):
+                updated_date = date.fromisoformat(str(updated_date)[:10])
+            return BookNote(
+                note_id=int(row[0]),
+                book_id=int(row[1]),
+                note_date=updated_date,
+                body=str(row[3]),
+            )
+
+    def delete_book_note(self, book_id: int, note_id: int) -> bool:
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                DELETE FROM dbo.book_notes
+                WHERE id = ? AND book_id = ?
+                """,
+                note_id,
+                book_id,
+            )
+            deleted = cursor.rowcount > 0
+            conn.commit()
+            return deleted
 
     def load_snapshot(
         self,

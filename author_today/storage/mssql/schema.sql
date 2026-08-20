@@ -142,3 +142,24 @@ BEGIN
     END
 END
 GO
+
+-- Заметки к книге (дата + текст; подсветка на тренде)
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = N'book_notes' AND schema_id = SCHEMA_ID(N'dbo'))
+BEGIN
+    CREATE TABLE dbo.book_notes (
+        id         BIGINT IDENTITY(1, 1) NOT NULL,
+        book_id    INT NOT NULL,
+        note_date  DATE NOT NULL,
+        body       NVARCHAR(1000) NOT NULL,
+        created_at DATETIME2(3) NOT NULL
+            CONSTRAINT DF_book_notes_created_at DEFAULT (SYSUTCDATETIME()),
+        updated_at DATETIME2(3) NULL,
+        CONSTRAINT PK_book_notes PRIMARY KEY CLUSTERED (id),
+        CONSTRAINT FK_book_notes_books
+            FOREIGN KEY (book_id) REFERENCES dbo.books (id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IX_book_notes_book_date
+        ON dbo.book_notes (book_id, note_date);
+END
+GO

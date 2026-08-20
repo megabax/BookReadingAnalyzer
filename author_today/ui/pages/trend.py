@@ -9,8 +9,10 @@ import streamlit as st
 from author_today.analyze.formatting import pct_column_label
 from author_today.errors import AuthorTodayError
 from author_today.services.books import load_book_catalog
+from author_today.services.notes import list_book_notes
 from author_today.ui.base import Page
 from author_today.ui.cache import ReportCache
+from author_today.ui.components.book_notes import BookNotesPanel
 from author_today.ui.components.book_picker import BookPicker
 from author_today.ui.presenters.trend import TrendChart, TrendPresenter
 from config.settings import Settings
@@ -26,12 +28,14 @@ class TrendPage(Page):
         cache: ReportCache,
         presenter: TrendPresenter | None = None,
         chart: TrendChart | None = None,
+        notes_panel: BookNotesPanel | None = None,
     ) -> None:
         self._settings = settings
         self._book_picker = book_picker
         self._cache = cache
         self._presenter = presenter or TrendPresenter()
         self._chart = chart or TrendChart()
+        self._notes_panel = notes_panel or BookNotesPanel(settings)
 
     @property
     def title(self) -> str:
@@ -51,6 +55,7 @@ class TrendPage(Page):
 
         catalog = load_book_catalog(self._settings)
         book_id = self._book_picker.pick(catalog, key_prefix="trend")
+        self._notes_panel.render(book_id, key_prefix="trend_notes")
 
         col_start, col_end = st.columns(2)
         with col_start:
@@ -122,6 +127,12 @@ class TrendPage(Page):
                     skip_book_page=skip_book_page,
                     baseline_chapter_order=baseline_chapter_order,
                 )
+                period_notes = list_book_notes(
+                    self._settings,
+                    book_id,
+                    date_from=period_start,
+                    date_to=period_end,
+                )
         except AuthorTodayError as exc:
             st.error(str(exc))
             return
@@ -151,7 +162,21 @@ class TrendPage(Page):
         st.markdown(
             f"**{pct_col}** (слева) и просмотры «{report.target_chapter_name}» (справа)"
         )
-        self._chart.render(report, y_title=pct_col)
+        self._chart.render(report, y_title=pct_col, notes=period_notes)
+
+        if period_notes:
+            st.caption(
+                f"Красные маркеры — заметки в периоде ({len(period_notes)}): "
+                "вертикаль на месяце события, текст в tooltip."
+            )
+            st.dataframe(
+                [
+                    {"дата": n.note_date, "текст": n.body}
+                    for n in period_notes
+                ],
+                hide_index=True,
+                width="stretch",
+            )
 
         table_df = self._presenter.dataframe(report)
         st.dataframe(

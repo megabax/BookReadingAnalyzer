@@ -15,6 +15,48 @@ from author_today.analyze.completion_trend import (
     save_completion_trend_csv,
 )
 from author_today.analyze.formatting import pct_column_label
+from author_today.storage.mssql_repo import BookNote
+
+
+def notes_in_report_months(
+    notes: list[BookNote],
+    report: CompletionTrendReport,
+) -> pd.DataFrame:
+    """
+    Заметки, попадающие в период отчёта и в месяцы точек тренда.
+
+    Несколько заметок в одном месяце склеиваются для подписи на графике.
+    """
+    month_set = {p.month_label for p in report.points}
+    rows: list[dict] = []
+    for note in notes:
+        if note.note_date < report.period_start or note.note_date > report.period_end:
+            continue
+        month = f"{note.note_date:%Y-%m}"
+        if month not in month_set:
+            continue
+        rows.append(
+            {
+                "month": month,
+                "note_date": note.note_date.isoformat(),
+                "body": note.body,
+            }
+        )
+    if not rows:
+        return pd.DataFrame(columns=["month", "label", "short"])
+
+    df = pd.DataFrame(rows)
+    labels: list[dict] = []
+    for month, group in df.groupby("month", sort=False):
+        parts = [f"{row.note_date}: {row.body}" for row in group.itertuples()]
+        labels.append(
+            {
+                "month": month,
+                "label": " | ".join(parts),
+                "short": parts[0] if len(parts) == 1 else f"{len(parts)} заметки",
+            }
+        )
+    return pd.DataFrame(labels)
 
 
 class TrendPresenter:
@@ -53,7 +95,13 @@ class TrendPresenter:
 class TrendChart:
     """Два ряда на одном графике: % от базы (слева) и просмотры главы (справа)."""
 
-    def render(self, report: CompletionTrendReport, *, y_title: str) -> None:
+    def render(
+        self,
+        report: CompletionTrendReport,
+        *,
+        y_title: str,
+        notes: list[BookNote] | None = None,
+    ) -> None:
         chart_df = pd.DataFrame(
             {
                 "month": [p.month_label for p in report.points],
@@ -88,8 +136,37 @@ class TrendChart:
                 axis=alt.Axis(titleColor="#ff7f0e", orient="right"),
             ),
         )
+        layers: list[alt.Chart] = [pct_line, views_line]
+
+        notes_df = notes_in_report_months(notes or [], report)
+        if not notes_df.empty:
+            note_rules = (
+                alt.Chart(notes_df)
+                .mark_rule(color="#d62728", strokeDash=[6, 4], strokeWidth=2)
+                .encode(
+                    x=alt.X("month:N", sort=None),
+                    tooltip=[
+                        alt.Tooltip("month:N", title="Месяц"),
+                        alt.Tooltip("label:N", title="Заметки"),
+                    ],
+                )
+            )
+            note_points = (
+                alt.Chart(notes_df)
+                .mark_point(shape="diamond", size=80, color="#d62728", filled=True)
+                .encode(
+                    x=alt.X("month:N", sort=None),
+                    y=alt.value(20),
+                    tooltip=[
+                        alt.Tooltip("month:N", title="Месяц"),
+                        alt.Tooltip("label:N", title="Заметки"),
+                    ],
+                )
+            )
+            layers.extend([note_rules, note_points])
+
         chart = (
-            alt.layer(pct_line, views_line)
+            alt.layer(*layers)
             .resolve_scale(y="independent")
             .properties(height=420)
         )

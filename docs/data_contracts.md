@@ -50,6 +50,18 @@ JSON в `data/raw/` — **устаревший** промежуточный фо
 | `title` | NVARCHAR(300) NULL | Не заполняется при fetch; правится вручную в UI («Загрузка» → «Название книги») |
 | `created_at` | DATETIME2 | UTC |
 
+### `dbo.book_notes`
+
+| Колонка | Тип | Описание |
+|---------|-----|----------|
+| `id` | BIGINT IDENTITY PK | |
+| `book_id` | INT FK → books.id | ON DELETE CASCADE |
+| `note_date` | DATE | Дата события |
+| `body` | NVARCHAR(1000) | Текст заметки |
+| `created_at` / `updated_at` | DATETIME2 | UTC |
+
+CRUD в UI (вкладка «Тренд дочитывания» → «Заметки по книге»). На графике тренда заметки в периоде подсвечиваются (красные маркеры).
+
 ### `dbo.fetch_runs`
 
 | Колонка | Тип | Описание |
