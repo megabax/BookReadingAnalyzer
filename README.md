@@ -30,6 +30,8 @@ streamlit_app.py         # веб-интерфейс
 tests/                   # pytest
 ```
 
+
+
 ## Установка
 
 ```bat
@@ -44,7 +46,7 @@ Editable-установка (`-e`) регистрирует пакеты `author
 
 UI: `pip install -e ".[ui]"` или `pip install -r requirements-ui.txt`.
 
-Тесты: `pytest` (см. [`docs/testing_strategy.md`](docs/testing_strategy.md)).
+Тесты: `pytest` (см. `[docs/testing_strategy.md](docs/testing_strategy.md)`).
 
 ## Запуск
 
@@ -74,10 +76,12 @@ python scripts/fetch_reads.py --start 2025-07-01 --end 2025-07-31 --wait-login 6
 
 Таблицы:
 
-| Таблица | Назначение |
-|---------|------------|
-| `dbo.fetch_runs` | Снимок загрузки: work_id, период, время |
+
+| Таблица             | Назначение                                                       |
+| ------------------- | ---------------------------------------------------------------- |
+| `dbo.fetch_runs`    | Снимок загрузки: work_id, период, время                          |
 | `dbo.chapter_reads` | Прочтения: дата, глава, metric_value (структура `dates` из JSON) |
+
 
 ```bat
 pip install -e .
@@ -93,6 +97,8 @@ python selenium_stats.py
 python scripts/delete_runs.py --book-id 323389 --fetched-from 2026-06-02T09:00:00 --fetched-to 2026-06-02T10:00:00 --dry-run
 python scripts/delete_runs.py --book-id 323389 --fetched-from 2026-06-02T09:00:00 --fetched-to 2026-06-02T10:00:00 --yes
 ```
+
+
 
 ## Воронка по главам
 
@@ -133,14 +139,16 @@ pip install -e ".[ui]"
 streamlit run streamlit_app.py
 ```
 
-Подробно: [`docs/ui_streamlit.md`](docs/ui_streamlit.md).
+Подробно: `[docs/ui_streamlit.md](docs/ui_streamlit.md)`.
 
 ## Документация
 
-- [`refactoring_plan.md`](refactoring_plan.md) — план рефакторинга
-- [`docs/`](docs/README.md) — глоссарий, ADR, known issues, стратегия тестов
+- `[refactoring_plan.md](refactoring_plan.md)` — план рефакторинга
+- `[docs/](docs/README.md)` — глоссарий, ADR, known issues, стратегия тестов
 
 ---
+
+
 
 ## Автор
 
@@ -150,35 +158,44 @@ streamlit run streamlit_app.py
 
 ### Контакты
 
-| | |
-|---|---|
-| Telegram | [@ShuravinAlex](https://t.me/ShuravinAlex) |
-| GitHub | [github.com/megabax](https://github.com/megabax) |
-| TenChat | [tenchat.ru/5244130](https://tenchat.ru/5244130) |
-| Habr | [habr.com/ru/users/megabax](https://habr.com/ru/users/megabax/) |
+
+|          |                                                                 |
+| -------- | --------------------------------------------------------------- |
+| Telegram | [@ShuravinAlex](https://t.me/ShuravinAlex)                      |
+| GitHub   | [github.com/megabax](https://github.com/megabax)                |
+| TenChat  | [tenchat.ru/5244130](https://tenchat.ru/5244130)                |
+| Habr     | [habr.com/ru/users/megabax](https://habr.com/ru/users/megabax/) |
+
+
+
 
 ### Для работодателя / рекрутера
 
 Кратко о стеке **этого** репозитория: Python, Selenium, MS SQL (pyodbc), pandas, Streamlit, pytest; CLI + фоновые jobs; разделение domain / storage / analyze / UI.
 
-| | |
-|---|---|
-| Резюме (PDF) | [Google Drive](https://drive.google.com/file/d/1DLPi60uDSgN74iixhaLfZdzF9_WFVpF5/view?usp=drive_link) |
-| Резюме (HH) | [hh.ru](https://izhevsk.hh.ru/resume/8ad4938fff10ad778c0039ed1f446b617a7149) |
-| Готовность к работе | удалённо (предпочтительно); гибрид / офис — Ижевск |
-| Целевая роль | ML / AI Engineer (LLM, CV, R&D); дата-сайентист / разработчик |
+
+|                     |                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------------- |
+| Резюме (PDF)        | [Google Drive](https://drive.google.com/file/d/1DLPi60uDSgN74iixhaLfZdzF9_WFVpF5/view?usp=drive_link) |
+| Резюме (HH)         | [hh.ru](https://izhevsk.hh.ru/resume/8ad4938fff10ad778c0039ed1f446b617a7149)                          |
+| Готовность к работе | удалённо (предпочтительно); гибрид / офис — Ижевск                                                    |
+| Целевая роль        | ML / AI Engineer (LLM, CV, R&D); дата-сайентист / разработчик                                         |
+
 
 **Стек (из опыта, кратко):**
 
-| Область | Технологии |
-|---------|------------|
-| LLM / AI | OpenAI-compatible API, DeepSeek, LangChain, RAG, embeddings (sentence-transformers, BGE), Ollama (Llama/Mistral), промпт-инжиниринг, privacy / 152-ФЗ (Natasha NER) |
-| Computer Vision | PyTorch, OpenCV, YOLO, ONNX, OCR (Tesseract), Librosa |
-| Backend / API | Python, FastAPI, asyncio, C#, REST, RabbitMQ |
-| Данные | PostgreSQL, MS SQL, SQLite, Qdrant, MinIO / S3, pandas, NumPy |
-| ETL / MLOps | Airflow, Docker, Linux, Prometheus, Grafana, n8n |
-| Качество кода | Git, Pytest, UML / ООП |
+
+| Область         | Технологии                                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LLM / AI        | OpenAI-compatible API, DeepSeek, LangChain, RAG, embeddings (sentence-transformers, BGE), Ollama (Llama/Mistral), промпт-инжиниринг, privacy / 152-ФЗ (Natasha NER) |
+| Computer Vision | PyTorch, OpenCV, YOLO, ONNX, OCR (Tesseract), Librosa                                                                                                               |
+| Backend / API   | Python, FastAPI, asyncio, C#, REST, RabbitMQ                                                                                                                        |
+| Данные          | PostgreSQL, MS SQL, SQLite, Qdrant, MinIO / S3, pandas, NumPy                                                                                                       |
+| ETL / MLOps     | Airflow, Docker, Linux, Prometheus, Grafana, n8n, MLFlow                                                                                                            |
+| Качество кода   | Git, Pytest, UML / ООП / SOLID                                                                                                                                      |
+
 
 Одной строкой: `Python · PyTorch · YOLO · OpenCV · FastAPI · Docker · PostgreSQL · Qdrant · LangChain / RAG · Airflow · C# · MS SQL · Linux`
 
 > Вопросы по коду и резюме — удобнее в Telegram.
+
