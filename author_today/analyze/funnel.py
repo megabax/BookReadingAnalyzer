@@ -27,6 +27,88 @@ class FunnelStep:
     drop_from_previous: int | None
 
 
+@dataclass(frozen=True)
+class FunnelDropPoint:
+    """Глава с сильным падением относительно предыдущей или базы."""
+
+    step: FunnelStep
+    kind: str  # "from_previous" | "from_baseline"
+    score: float  # величина падения в п.п. (%), чем больше — тем хуже
+    label: str
+
+
+@dataclass(frozen=True)
+class FunnelDropReport:
+    from_previous: tuple[FunnelDropPoint, ...]
+    from_baseline: tuple[FunnelDropPoint, ...]
+
+    @property
+    def highlighted_step_nums(self) -> frozenset[int]:
+        nums = {p.step.step_num for p in self.from_previous}
+        nums.update(p.step.step_num for p in self.from_baseline)
+        return frozenset(nums)
+
+
+def find_funnel_drop_points(
+    steps: list[FunnelStep],
+    *,
+    top_n: int = 3,
+) -> FunnelDropReport:
+    """
+    Топ глав с наибольшим падением.
+
+    - from_previous: по (100 − % от предыдущей главы);
+    - from_baseline: по падению «% от базы» относительно предыдущего шага воронки
+      (prev.pct_of_first − curr.pct_of_first).
+    """
+    if top_n < 1:
+        top_n = 1
+
+    prev_drops: list[FunnelDropPoint] = []
+    for step in steps:
+        if step.pct_of_previous is None:
+            continue
+        score = 100.0 - float(step.pct_of_previous)
+        if score <= 0:
+            continue
+        prev_drops.append(
+            FunnelDropPoint(
+                step=step,
+                kind="from_previous",
+                score=score,
+                label=(
+                    f"«{step.chapter_name}»: % от пред. "
+                    f"{step.pct_of_previous:.1f}% (−{score:.1f} п.п.)"
+                ),
+            )
+        )
+    prev_drops.sort(key=lambda p: (-p.score, p.step.step_num))
+
+    base_drops: list[FunnelDropPoint] = []
+    for prev, curr in zip(steps, steps[1:]):
+        score = float(prev.pct_of_first) - float(curr.pct_of_first)
+        if score <= 0:
+            continue
+        base_drops.append(
+            FunnelDropPoint(
+                step=curr,
+                kind="from_baseline",
+                score=score,
+                label=(
+                    f"«{curr.chapter_name}»: % от базы "
+                    f"{prev.pct_of_first:.1f}% → {curr.pct_of_first:.1f}% "
+                    f"(−{score:.1f} п.п.)"
+                ),
+            )
+        )
+    base_drops.sort(key=lambda p: (-p.score, p.step.step_num))
+
+    return FunnelDropReport(
+        from_previous=tuple(prev_drops[:top_n]),
+        from_baseline=tuple(base_drops[:top_n]),
+    )
+
+
 def default_funnel_csv_path(
     book_id: int,
     period_start: date,

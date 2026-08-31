@@ -10,6 +10,7 @@ import pytest
 from author_today.analyze.funnel import (
     build_funnel,
     default_funnel_csv_path,
+    find_funnel_drop_points,
     funnel_from_json,
     funnel_from_snapshot,
     save_funnel_csv,
@@ -94,3 +95,20 @@ def test_save_funnel_csv_decimal_comma(tmp_path: Path, minimal_snapshot_path: Pa
     assert "50,0" in text or "50,0" in text.replace("100,0", "")
     assert ";" in text
     assert "chapter_order" in text
+
+
+def test_find_funnel_drop_points():
+    rows = [
+        (1, "Глава 1", 100),
+        (2, "Глава 2", 90),   # −10 п.п. от пред. (90%), −10 п.п. от базы
+        (3, "Глава 3", 30),   # −60 п.п. от пред. (33.3%), −60 п.п. от базы
+        (4, "Глава 4", 27),   # небольшое падение
+    ]
+    steps = build_funnel(rows)
+    report = find_funnel_drop_points(steps, top_n=2)
+
+    assert report.from_previous[0].step.chapter_name == "Глава 3"
+    assert report.from_previous[0].score == pytest.approx(66.666, abs=0.1)
+    assert report.from_baseline[0].step.chapter_name == "Глава 3"
+    assert report.from_baseline[0].score == pytest.approx(60.0)
+    assert 3 in report.highlighted_step_nums

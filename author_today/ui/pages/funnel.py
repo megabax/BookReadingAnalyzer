@@ -5,12 +5,17 @@ from __future__ import annotations
 import streamlit as st
 
 from author_today.analyze.formatting import pct_column_label
+from author_today.analyze.funnel import find_funnel_drop_points
 from author_today.errors import AuthorTodayError
 from author_today.services.books import load_book_catalog
 from author_today.ui.base import Page
 from author_today.ui.cache import ReportCache
 from author_today.ui.components.book_picker import BookPicker
-from author_today.ui.presenters.funnel import FunnelChart, FunnelPresenter
+from author_today.ui.presenters.funnel import (
+    FunnelChart,
+    FunnelPresenter,
+    render_drop_summary,
+)
 from config.settings import Settings
 
 
@@ -132,6 +137,9 @@ class FunnelPage(Page):
             if baseline_chapter_order is not None
             else steps[0]
         )
+        drops = find_funnel_drop_points(steps, top_n=3)
+        drop_nums = drops.highlighted_step_nums
+
         st.success(
             f"book_id={book_id}, {period_start} — {period_end} · шагов: {len(steps)}"
         )
@@ -148,22 +156,31 @@ class FunnelPage(Page):
             f"{steps[-1].pct_of_first:.1f}%",
         )
 
+        render_drop_summary(drops)
+
         st.markdown(f"**{pct_col}** по шагам воронки")
-        self._chart.render(steps, y_title=pct_col)
+        self._chart.render(steps, y_title=pct_col, drop_step_nums=drop_nums)
 
         table_df = self._presenter.dataframe(
             steps,
             baseline_chapter_order=baseline_chapter_order,
+            drop_step_nums=drop_nums,
         )
-        st.dataframe(
-            table_df,
-            hide_index=True,
-            width="stretch",
-            column_config={
-                "% от пред.": st.column_config.NumberColumn(format="%.1f"),
-                pct_col: st.column_config.NumberColumn(format="%.1f"),
-            },
-        )
+        if drop_nums:
+            st.dataframe(
+                self._presenter.style_drop_rows(table_df, drop_nums),
+                width="stretch",
+            )
+        else:
+            st.dataframe(
+                table_df,
+                hide_index=True,
+                width="stretch",
+                column_config={
+                    "% от пред.": st.column_config.NumberColumn(format="%.1f"),
+                    pct_col: st.column_config.NumberColumn(format="%.1f"),
+                },
+            )
 
         st.download_button(
             "Скачать CSV",
@@ -177,7 +194,7 @@ class FunnelPage(Page):
         )
 
         st.caption(
-            "Повторные загрузки того же периода суммируются в БД. "
-            "При дублях run'ов воронка может быть завышена — см. "
-            "`scripts/delete_runs.py` и `scripts/check_load_gaps.py`."
+            "Красные треугольники и подсветка строк — топ провалов "
+            "(падение % от предыдущей главы и/или % от базы к предыдущему шагу). "
+            "Повторные загрузки того же периода суммируются в БД."
         )
