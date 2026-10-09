@@ -31,6 +31,14 @@ class DeviceCodeRequired(AuthorTodayError):
         super().__init__(hint)
 
 
+class StatsPageError(AuthorTodayError):
+    """Страница отчёта недоступна: нет прав или 404 (не ждать Kendo)."""
+
+    def __init__(self, reason: str, message: str) -> None:
+        self.reason = reason  # "forbidden" | "not_found"
+        super().__init__(message)
+
+
 def _format_exception_args(exc: BaseException) -> str:
     """Собрать текст из args (pyodbc часто даёт пустой str(exc) = 'Message:')."""
     parts: list[str] = []

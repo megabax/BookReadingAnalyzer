@@ -82,7 +82,7 @@ CRUD в UI (вкладка «Тренд дочитывания» → «Заме�
 | `chapter_name` | NVARCHAR(500) | |
 | `metric_value` | DECIMAL(12,2) NULL | Значение метрики run'а (hit / time / avgTime); бывш. `views` INT |
 
-PK: `(run_id, read_date, chapter_name)`.
+PK: `(run_id, read_date, chapter_order)` (одинаковые `chapter_name` в одном run допускаются).
 
 При нескольких `fetch_runs` **одной метрики** (`value_type`) за один период аналитика **суммирует** `metric_value` (риск дублей — см. `delete_runs.py`). Отчёты по умолчанию читают только `value_type = hit`.
 

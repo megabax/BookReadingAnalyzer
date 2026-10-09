@@ -4,6 +4,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 
 from author_today.auth.base import AuthProvider
 from author_today.domain.models import StatsTable
+from author_today.fetch.page_errors import raise_if_stats_page_error
 from author_today.parse.kendo_grid import parse_stats_page
 
 
@@ -19,4 +20,6 @@ def load_stats_table(
     auth.ensure_logged_in(driver)
     if url not in driver.current_url:
         driver.get(url)
+    # Сначала ошибка доступа/404 — не ждать Kendo ~timeout секунд
+    raise_if_stats_page_error(driver.page_source or "")
     return parse_stats_page(driver, timeout=timeout)

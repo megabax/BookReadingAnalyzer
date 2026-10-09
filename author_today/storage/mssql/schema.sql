@@ -48,7 +48,8 @@ BEGIN
         chapter_name NVARCHAR(500) NOT NULL,
         -- hit / time (сек) / avgTime: до ~1e10 с двумя знаками после запятой
         metric_value DECIMAL(12, 2) NULL,
-        CONSTRAINT PK_chapter_reads PRIMARY KEY CLUSTERED (run_id, read_date, chapter_name),
+        -- PK по порядку на сайте: одинаковые названия глав (интерлюдии и т.п.) допустимы
+        CONSTRAINT PK_chapter_reads PRIMARY KEY CLUSTERED (run_id, read_date, chapter_order),
         CONSTRAINT FK_chapter_reads_fetch_runs
             FOREIGN KEY (run_id) REFERENCES dbo.fetch_runs (id) ON DELETE CASCADE
     );
@@ -62,6 +63,53 @@ GO
 IF COL_LENGTH('dbo.chapter_reads', 'chapter_order') IS NULL
 BEGIN
     ALTER TABLE dbo.chapter_reads ADD chapter_order INT NULL;
+END
+GO
+
+-- Миграция: PK (run_id, read_date, chapter_name) → (run_id, read_date, chapter_order)
+-- Нужно для книг с двумя главами с одинаковым названием на сайте.
+IF EXISTS (
+    SELECT 1
+    FROM sys.key_constraints kc
+    INNER JOIN sys.index_columns ic
+        ON kc.parent_object_id = ic.object_id
+       AND kc.unique_index_id = ic.index_id
+    INNER JOIN sys.columns c
+        ON ic.object_id = c.object_id
+       AND ic.column_id = c.column_id
+    WHERE kc.parent_object_id = OBJECT_ID(N'dbo.chapter_reads')
+      AND kc.name = N'PK_chapter_reads'
+      AND c.name = N'chapter_name'
+)
+BEGIN
+    ;WITH numbered AS (
+        SELECT
+            run_id,
+            read_date,
+            chapter_name,
+            ROW_NUMBER() OVER (
+                PARTITION BY run_id, read_date
+                ORDER BY chapter_name
+            ) AS rn
+        FROM dbo.chapter_reads
+        WHERE chapter_order IS NULL
+    )
+    UPDATE cr
+    SET chapter_order = n.rn
+    FROM dbo.chapter_reads AS cr
+    INNER JOIN numbered AS n
+        ON cr.run_id = n.run_id
+       AND cr.read_date = n.read_date
+       AND cr.chapter_name = n.chapter_name
+    WHERE cr.chapter_order IS NULL;
+
+    ALTER TABLE dbo.chapter_reads ALTER COLUMN chapter_order INT NOT NULL;
+
+    ALTER TABLE dbo.chapter_reads DROP CONSTRAINT PK_chapter_reads;
+
+    ALTER TABLE dbo.chapter_reads
+        ADD CONSTRAINT PK_chapter_reads
+            PRIMARY KEY CLUSTERED (run_id, read_date, chapter_order);
 END
 GO
 

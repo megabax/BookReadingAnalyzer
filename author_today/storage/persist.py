@@ -24,6 +24,7 @@ def persist_snapshot(
 
     if save_mssql and settings.has_mssql():
         repo = get_repository(settings)
+        repo.ensure_schema()
         run_id = repo.save_snapshot(snapshot)
         rows_count = sum(len(day["chapters"]) for day in snapshot.to_document()["dates"])
         print(f"MS SQL: run_id={run_id}, записей chapter_reads={rows_count}")

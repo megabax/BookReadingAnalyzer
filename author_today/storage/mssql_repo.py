@@ -750,7 +750,7 @@ class MssqlReadRepository:
                 rows.append(
                     (
                         read_date,
-                        chapter_idx + 1,  # порядок главы ровно как на сайте
+                        snapshot.site_chapter_order(chapter_idx),
                         chapter,
                         snapshot.values[chapter_idx][day_idx],
                     )

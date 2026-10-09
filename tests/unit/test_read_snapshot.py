@@ -52,6 +52,45 @@ def test_from_stats_table_cross_year():
     assert snap.dates[1] == date(2026, 1, 2)
 
 
+def test_duplicate_chapter_names_keep_distinct_orders():
+    """Две главы с одним названием — разные chapter_order (PK chapter_reads)."""
+    from author_today.storage.mssql_repo import MssqlReadRepository
+
+    table = StatsTable(
+        dates=["30.06"],
+        rows=[
+            {
+                "chapter": "Интерлюдия (события в иных мирах)",
+                "30.06": 10,
+            },
+            {
+                "chapter": "Интерлюдия (события в иных мирах)",
+                "30.06": 3,
+            },
+        ],
+    )
+    snap = ReadSnapshot.from_stats_table(
+        table,
+        book_id=588984,
+        period_start=date(2026, 6, 1),
+        period_end=date(2026, 6, 30),
+    )
+    assert snap.chapters == (
+        "Интерлюдия (события в иных мирах)",
+        "Интерлюдия (события в иных мирах)",
+    )
+    assert snap.site_chapter_order(0) == 1
+    assert snap.site_chapter_order(1) == 2
+    rows = MssqlReadRepository._chapter_rows(snap)
+    keys = [(d, order, name) for d, order, name, _v in rows]
+    assert keys == [
+        (date(2026, 6, 30), 1, "Интерлюдия (события в иных мирах)"),
+        (date(2026, 6, 30), 2, "Интерлюдия (события в иных мирах)"),
+    ]
+    # PK теперь (run_id, read_date, chapter_order) — пары (date, order) уникальны
+    assert len({(d, order) for d, order, _n, _v in rows}) == len(rows)
+
+
 def test_to_document_roundtrip(minimal_snapshot: ReadSnapshot):
     doc = minimal_snapshot.to_document()
     assert doc["book_id"] == 1
