@@ -15,5 +15,6 @@
 | [ui_streamlit.md](ui_streamlit.md) | Веб-интерфейс: Streamlit, экраны, установка |
 | [metrics_value_types.md](metrics_value_types.md) | Метрики hit / time / avgTime; `fetch_runs.value_type` |
 | [kendo_chapter_row_filter.md](kendo_chapter_row_filter.md) | Отказ от whitelist названий глав при парсинге Kendo |
+| [feature_checklist.md](feature_checklist.md) | Чеклист: что сделано / что ещё в плане |
 
 **Порядок чтения:** glossary → architecture_baseline → data_contracts → known_issues → decisions → testing_strategy.
