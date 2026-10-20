@@ -94,4 +94,4 @@ MS SQL A/B ► load_snapshot() ──► daily_matrix() ──► compare_funnel
 ## Что не входит в основной пакет
 
 - `legacy/` — старые эксперименты, не импортируются
-- продажи / `reclan.csv` — вне текущего scope (модуль `analyze/sales.py` удалён)
+- продажи в коде пока **не** реализованы (`analyze/sales.py` удалён; `reclan.csv` не использовать). Дизайн загрузки с ЛК: [`sales_fetch.md`](sales_fetch.md)

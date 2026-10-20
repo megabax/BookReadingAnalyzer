@@ -86,6 +86,18 @@ PK: `(run_id, read_date, chapter_order)` (одинаковые `chapter_name` в
 
 При нескольких `fetch_runs` **одной метрики** (`value_type`) за один период аналитика **суммирует** `metric_value` (риск дублей — см. `delete_runs.py`). Отчёты по умолчанию читают только `value_type = hit`.
 
+### `dbo.sale_runs` / `dbo.sale_events` (запланировано)
+
+Проектируется загрузка продаж с `/merchant/dashboard` → `/merchant/getdetailstable`.  
+Детали URL, полей и границ v1: [`sales_fetch.md`](sales_fetch.md). Код и миграция schema — **ещё не реализованы**.
+
+| Таблица | Назначение |
+|--------|------------|
+| `sale_runs` | Снимок: `work_id`, `period_start` / `period_end`, `fetched_at` |
+| `sale_events` | Строки продаж/наград: `processed_at`, `item_id`, `item_type`, `work_format`, `item_title`, `price`, `commission`, `author_income` |
+
+Не смешивать с `fetch_runs` / `chapter_reads`.
+
 ## CSV воронки
 
 - Кодировка: UTF-8 с BOM
