@@ -23,9 +23,11 @@ from author_today.domain.value_types import (
 from author_today.errors import ConfigError, DeviceCodeRequired, format_exception_message
 from author_today.fetch.periods import needs_monthly_chunks, split_period_into_months
 from author_today.pipeline.sync_reads import _auth_provider, _load_and_persist_period
+from author_today.pipeline.sync_sales import _load_and_persist_sales_period
 from config.settings import Settings, ensure_data_dirs
 
 FetchStatus = Literal["idle", "running", "awaiting_code", "done", "error", "cancelled"]
+FetchMode = Literal["reads", "sales"]
 
 # Синхронные сессии (совместимость / тесты).
 _SESSIONS: dict[str, "FetchSession"] = {}
@@ -47,6 +49,8 @@ class FetchResult:
     table_date_min: date | None = None
     table_date_max: date | None = None
     value_types: tuple[str, ...] = ("hit",)
+    mode: FetchMode = "reads"
+    event_count: int = 0
 
 
 @dataclass
@@ -297,6 +301,7 @@ class FetchJob:
         wait_login_seconds: int | None = None,
         job_id: str | None = None,
         value_types: tuple[str, ...] | list[str] | None = None,
+        mode: FetchMode = "reads",
     ) -> None:
         if period_start > period_end:
             raise ValueError("Начало периода должно быть не позже конца.")
@@ -304,6 +309,8 @@ class FetchJob:
             raise ConfigError(
                 "MS SQL не настроен. Задайте MSSQL_* в .env или отключите сохранение в БД."
             )
+        if mode not in ("reads", "sales"):
+            raise ValueError(f"Неизвестный режим загрузки: {mode!r}")
 
         self.job_id = job_id or uuid.uuid4().hex
         self._settings = replace(settings, book_id=book_id)
@@ -313,16 +320,24 @@ class FetchJob:
         self._save_mssql = save_mssql
         self._save_raw = save_raw
         self._wait_login_seconds = wait_login_seconds
-        self._value_types = normalize_value_types(
-            value_types
-            if value_types is not None
-            else (settings.value_type or DEFAULT_VALUE_TYPE,)
+        self._mode: FetchMode = mode
+        self._value_types = (
+            ()
+            if mode == "sales"
+            else normalize_value_types(
+                value_types
+                if value_types is not None
+                else (settings.value_type or DEFAULT_VALUE_TYPE,)
+            )
         )
 
-        month_chunks = split_period_into_months(period_start, period_end)
-        if not needs_monthly_chunks(period_start, period_end):
-            month_chunks = [(period_start, period_end)]
-        total_chunks = len(month_chunks) * len(self._value_types)
+        if mode == "sales":
+            total_chunks = 1
+        else:
+            month_chunks = split_period_into_months(period_start, period_end)
+            if not needs_monthly_chunks(period_start, period_end):
+                month_chunks = [(period_start, period_end)]
+            total_chunks = len(month_chunks) * len(self._value_types)
 
         self._lock = threading.Lock()
         self._progress = FetchProgress(
@@ -430,55 +445,97 @@ class FetchJob:
                 wait_login_seconds=self._wait_login_seconds,
             )
 
-            month_chunks = split_period_into_months(self.period_start, self.period_end)
-            if not needs_monthly_chunks(self.period_start, self.period_end):
-                month_chunks = [(self.period_start, self.period_end)]
-            total = len(month_chunks) * len(self._value_types)
-            step = 0
-            table = None
-
-            for metric in self._value_types:
+            if self._mode == "sales":
                 self._check_cancel()
-                settings = replace(self._settings, value_type=metric)
-                for chunk_start, chunk_end in month_chunks:
+                self._update(
+                    status="running",
+                    stage=(
+                        f"[sales] Загрузка продаж {self.period_start} — "
+                        f"{self.period_end}…"
+                    ),
+                    current_chunk=1,
+                    total_chunks=1,
+                    value_type=None,
+                )
+                sale_snap = _load_and_persist_sales_period(
+                    self._driver,
+                    auth,
+                    self._settings,
+                    self.period_start,
+                    self.period_end,
+                    save_raw=self._save_raw,
+                    save_mssql=self._save_mssql,
+                )
+                days = {e.processed_at.date() for e in sale_snap.events}
+                result = FetchResult(
+                    book_id=self.book_id,
+                    period_start=self.period_start,
+                    period_end=self.period_end,
+                    chapter_count=0,
+                    day_count=len(days),
+                    monthly_chunks=1,
+                    saved_mssql=self._save_mssql,
+                    saved_raw=self._save_raw,
+                    table_date_min=min(days) if days else None,
+                    table_date_max=max(days) if days else None,
+                    value_types=(),
+                    mode="sales",
+                    event_count=len(sale_snap.events),
+                )
+                total = 1
+            else:
+                month_chunks = split_period_into_months(
+                    self.period_start, self.period_end
+                )
+                if not needs_monthly_chunks(self.period_start, self.period_end):
+                    month_chunks = [(self.period_start, self.period_end)]
+                total = len(month_chunks) * len(self._value_types)
+                step = 0
+                table = None
+
+                for metric in self._value_types:
                     self._check_cancel()
-                    step += 1
-                    self._update(
-                        status="running",
-                        stage=(
-                            f"[{metric}] Загрузка {chunk_start} — {chunk_end} "
-                            f"(шаг {step}/{total})…"
-                        ),
-                        current_chunk=step,
-                        total_chunks=total,
-                        value_type=metric,
-                    )
-                    table = _load_and_persist_period(
-                        self._driver,
-                        auth,
-                        settings,
-                        chunk_start,
-                        chunk_end,
-                        save_raw=self._save_raw,
-                        save_mssql=self._save_mssql,
-                    )
-                    self._update(
-                        stage=f"[{metric}] Сохранён шаг {step}/{total}",
-                        current_chunk=step,
-                    )
+                    settings = replace(self._settings, value_type=metric)
+                    for chunk_start, chunk_end in month_chunks:
+                        self._check_cancel()
+                        step += 1
+                        self._update(
+                            status="running",
+                            stage=(
+                                f"[{metric}] Загрузка {chunk_start} — {chunk_end} "
+                                f"(шаг {step}/{total})…"
+                            ),
+                            current_chunk=step,
+                            total_chunks=total,
+                            value_type=metric,
+                        )
+                        table = _load_and_persist_period(
+                            self._driver,
+                            auth,
+                            settings,
+                            chunk_start,
+                            chunk_end,
+                            save_raw=self._save_raw,
+                            save_mssql=self._save_mssql,
+                        )
+                        self._update(
+                            stage=f"[{metric}] Сохранён шаг {step}/{total}",
+                            current_chunk=step,
+                        )
 
-            if table is None:
-                raise RuntimeError("Не удалось загрузить данные за период.")
+                if table is None:
+                    raise RuntimeError("Не удалось загрузить данные за период.")
 
-            result = _result_from_table(
-                table,
-                book_id=self.book_id,
-                period_start=self.period_start,
-                period_end=self.period_end,
-                save_mssql=self._save_mssql,
-                save_raw=self._save_raw,
-                value_types=self._value_types,
-            )
+                result = _result_from_table(
+                    table,
+                    book_id=self.book_id,
+                    period_start=self.period_start,
+                    period_end=self.period_end,
+                    save_mssql=self._save_mssql,
+                    save_raw=self._save_raw,
+                    value_types=self._value_types,
+                )
+
             if self._cancel.is_set():
                 self._update(status="cancelled", stage="Отменено", result=None)
             else:

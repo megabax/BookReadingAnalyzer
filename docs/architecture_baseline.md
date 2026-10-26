@@ -94,4 +94,4 @@ MS SQL A/B ► load_snapshot() ──► daily_matrix() ──► compare_funnel
 ## Что не входит в основной пакет
 
 - `legacy/` — старые эксперименты, не импортируются
-- продажи в коде пока **не** реализованы (`analyze/sales.py` удалён; `reclan.csv` не использовать). Дизайн загрузки с ЛК: [`sales_fetch.md`](sales_fetch.md)
+- импорт `reclan.csv` / PDF агента — не используем; продажи грузятся с ЛК ([`sales_fetch.md`](sales_fetch.md))

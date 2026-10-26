@@ -86,15 +86,31 @@ PK: `(run_id, read_date, chapter_order)` (одинаковые `chapter_name` в
 
 При нескольких `fetch_runs` **одной метрики** (`value_type`) за один период аналитика **суммирует** `metric_value` (риск дублей — см. `delete_runs.py`). Отчёты по умолчанию читают только `value_type = hit`.
 
-### `dbo.sale_runs` / `dbo.sale_events` (запланировано)
+### `dbo.sale_runs`
 
-Проектируется загрузка продаж с `/merchant/dashboard` → `/merchant/getdetailstable`.  
-Детали URL, полей и границ v1: [`sales_fetch.md`](sales_fetch.md). Код и миграция schema — **ещё не реализованы**.
+Снимок загрузки продаж (не путать с `fetch_runs`). Подробности: [`sales_fetch.md`](sales_fetch.md).
 
-| Таблица | Назначение |
-|--------|------------|
-| `sale_runs` | Снимок: `work_id`, `period_start` / `period_end`, `fetched_at` |
-| `sale_events` | Строки продаж/наград: `processed_at`, `item_id`, `item_type`, `work_format`, `item_title`, `price`, `commission`, `author_income` |
+| Колонка | Тип | Описание |
+|---------|-----|----------|
+| `id` | BIGINT IDENTITY PK | |
+| `work_id` | INT FK → books.id | Книга фильтра (`itemId`) |
+| `period_start`, `period_end` | DATE | |
+| `fetched_at` | DATETIME2 | |
+
+### `dbo.sale_events`
+
+Строки продаж книги (`ItemType=1` с сайта). Названия и соавторы **не** хранятся.
+
+| Колонка | Тип | Описание |
+|---------|-----|----------|
+| `id` | BIGINT IDENTITY PK | |
+| `run_id` | BIGINT FK → sale_runs ON DELETE CASCADE | |
+| `processed_at` | DATETIME2 | `ProcessedTime` |
+| `book_id` | INT FK → books.id | `ItemId` (= workId) |
+| `work_format` | TINYINT NULL | 1 ebook, 2 audiobook |
+| `price` | DECIMAL(12,2) | |
+| `commission` | DECIMAL(12,4) | доля комиссии |
+| `author_income` | DECIMAL(12,2) | доход автора |
 
 Не смешивать с `fetch_runs` / `chapter_reads`.
 

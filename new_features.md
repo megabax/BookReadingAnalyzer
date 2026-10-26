@@ -176,19 +176,11 @@ A / B / C или «этот месяц vs средний за N месяцев»
 
 **Приоритет:** высокий (качество данных); объём небольшой; логично после или вместе с §12.
 
-### 15. Загрузка продаж с merchant/dashboard (дизайн ✅, код нет)
+### 15. Загрузка продаж с merchant/dashboard ✅
 
-PDF отчёта агента и `reclan.csv` **не** подходят: нет надёжного `workId`, названия могут расходиться с `dbo.books`.  
-Публичное API author.today продаж не отдаёт.
-
-**Источник:** ЛК → `/merchant/dashboard?groupBy=work&startDate=…&endDate=…&itemId={book_id}`.  
-Данные таблицы — Kendo AJAX **`/merchant/getdetailstable`** (есть `ItemId` = workId).
-
-Полный дизайн: [docs/sales_fetch.md](docs/sales_fetch.md).
-
-**v1 (когда реализуем):** Selenium auth → HTTP к `getdetailstable` → `sale_runs` + `sale_events`; не смешивать с `chapter_reads`.
-
-**Приоритет:** позже / после стабилизации прочтений и §14; отдельное согласование перед кодом.
+Selenium auth → `/merchant/getdetailstable` → `sale_runs` + `sale_events` (`book_id` = `ItemId`, без названий/соавторов).  
+UI «Загрузка» → «Продажи»; CLI: `python scripts/fetch_sales.py`.  
+Документация: [docs/sales_fetch.md](docs/sales_fetch.md).
 
 ---
 
@@ -205,9 +197,8 @@ PDF отчёта агента и `reclan.csv` **не** подходят: нет 
 
 1. **Защита от дублей загрузки** (§14) — не плодить суммирующиеся run'ы  
 2. **Календарь покрытия** + при желании догрузка дыр  
-3. **Продажи** (§15) — после отдельного согласования (дизайн уже в docs)
 
-(§1 удаление run, §12 ошибки 403/404 — сделано.)
+(§1 удаление run, §12 ошибки 403/404, §15 загрузка продаж — сделано.)
 
 ---
 
@@ -225,4 +216,4 @@ PDF отчёта агента и `reclan.csv` **не** подходят: нет 
 | Ошибки доступа / 404 | `fetch/stats_page.py`, `parse/kendo_grid.py`, `FetchJob` |
 | ИИ-разбор отчётов | Funnel/Compare UI + новый `services/ai_explain.py` (черновик) |
 | Дубли загрузки | `fetch_runs` period ∩ value_type; guard до `FetchJob` / CLI |
-| Продажи (§15) | дизайн [docs/sales_fetch.md](docs/sales_fetch.md); auth как у прочтений |
+| Продажи (§15) | [docs/sales_fetch.md](docs/sales_fetch.md); `FetchJob(mode=sales)`, `scripts/fetch_sales.py` |

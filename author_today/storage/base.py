@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Protocol
 from author_today.domain.models import ReadSnapshot
 
 if TYPE_CHECKING:
+    from author_today.domain.sales import SaleSnapshot
     from author_today.storage.mssql_repo import (
         BookLoadInfo,
         BookNote,
@@ -33,6 +34,9 @@ class ReadRepository(Protocol):
 
     def save_snapshot(self, snapshot: ReadSnapshot) -> int:
         """Сохранить снимок; вернуть run_id."""
+
+    def save_sale_snapshot(self, snapshot: SaleSnapshot) -> int:
+        """Сохранить снимок продаж; вернуть sale_runs.id."""
 
     def list_runs(self, book_id: int, *, limit: int = 20) -> list[dict]:
         """Последние загрузки книги (от новых к старым)."""

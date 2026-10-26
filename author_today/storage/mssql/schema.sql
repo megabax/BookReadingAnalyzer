@@ -211,3 +211,47 @@ BEGIN
         ON dbo.book_notes (book_id, note_date);
 END
 GO
+
+-- Продажи книги (ЛК /merchant/dashboard → getdetailstable)
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = N'sale_runs' AND schema_id = SCHEMA_ID(N'dbo'))
+BEGIN
+    CREATE TABLE dbo.sale_runs (
+        id           BIGINT IDENTITY(1, 1) NOT NULL,
+        work_id      INT NOT NULL,
+        period_start DATE NOT NULL,
+        period_end   DATE NOT NULL,
+        fetched_at   DATETIME2(3) NOT NULL,
+        CONSTRAINT PK_sale_runs PRIMARY KEY CLUSTERED (id),
+        CONSTRAINT FK_sale_runs_books
+            FOREIGN KEY (work_id) REFERENCES dbo.books (id)
+    );
+
+    CREATE INDEX IX_sale_runs_work_fetched
+        ON dbo.sale_runs (work_id, fetched_at DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = N'sale_events' AND schema_id = SCHEMA_ID(N'dbo'))
+BEGIN
+    CREATE TABLE dbo.sale_events (
+        id             BIGINT IDENTITY(1, 1) NOT NULL,
+        run_id         BIGINT NOT NULL,
+        processed_at   DATETIME2(3) NOT NULL,
+        book_id        INT NOT NULL, -- ItemId с сайта (= workId книги)
+        work_format    TINYINT NULL, -- 1 ebook, 2 audiobook
+        price          DECIMAL(12, 2) NOT NULL,
+        commission     DECIMAL(12, 4) NOT NULL,
+        author_income  DECIMAL(12, 2) NOT NULL,
+        CONSTRAINT PK_sale_events PRIMARY KEY CLUSTERED (id),
+        CONSTRAINT FK_sale_events_sale_runs
+            FOREIGN KEY (run_id) REFERENCES dbo.sale_runs (id) ON DELETE CASCADE,
+        CONSTRAINT FK_sale_events_books
+            FOREIGN KEY (book_id) REFERENCES dbo.books (id)
+    );
+
+    CREATE INDEX IX_sale_events_run_processed
+        ON dbo.sale_events (run_id, processed_at);
+    CREATE INDEX IX_sale_events_book_processed
+        ON dbo.sale_events (book_id, processed_at);
+END
+GO

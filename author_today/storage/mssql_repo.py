@@ -5,6 +5,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from author_today.domain.models import MetricValue, ReadSnapshot, coerce_metric_value
+from author_today.domain.sales import SaleSnapshot
 from author_today.domain.value_types import DEFAULT_VALUE_TYPE, normalize_value_type
 from author_today.storage.mssql.connection import connect
 from config.settings import Settings
@@ -149,6 +150,57 @@ class MssqlReadRepository:
                     [
                         (run_id, read_date, chapter_order, chapter, metric_value)
                         for read_date, chapter_order, chapter, metric_value in rows
+                    ],
+                )
+            conn.commit()
+            return run_id
+
+    def save_sale_snapshot(self, snapshot: SaleSnapshot) -> int:
+        """Сохранить снимок продаж: sale_runs + sale_events."""
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                IF NOT EXISTS (SELECT 1 FROM dbo.books WHERE id = ?)
+                    INSERT INTO dbo.books (id) VALUES (?)
+                """,
+                snapshot.book_id,
+                snapshot.book_id,
+            )
+            cursor.execute(
+                """
+                INSERT INTO dbo.sale_runs
+                    (work_id, period_start, period_end, fetched_at)
+                OUTPUT INSERTED.id
+                VALUES (?, ?, ?, ?)
+                """,
+                snapshot.book_id,
+                snapshot.period_start,
+                snapshot.period_end,
+                snapshot.fetched_at,
+            )
+            run_id = int(cursor.fetchone()[0])
+
+            if snapshot.events:
+                cursor.fast_executemany = True
+                cursor.executemany(
+                    """
+                    INSERT INTO dbo.sale_events
+                        (run_id, processed_at, book_id, work_format,
+                         price, commission, author_income)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            run_id,
+                            event.processed_at,
+                            event.book_id,
+                            event.work_format,
+                            event.price,
+                            event.commission,
+                            event.author_income,
+                        )
+                        for event in snapshot.events
                     ],
                 )
             conn.commit()

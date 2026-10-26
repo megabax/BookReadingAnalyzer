@@ -67,6 +67,18 @@ class FetchPage(Page):
         book_id = self._book_picker.pick(catalog, key_prefix="fetch")
         self._load_info.render(book_id)
 
+        fetch_kind = st.radio(
+            "Что загружать",
+            options=["Прочтения", "Продажи"],
+            horizontal=True,
+            key="fetch_kind",
+            help=(
+                "Прочтения — /report/work/stats (главы × дни). "
+                "Продажи — /merchant/dashboard → getdetailstable (sale_runs)."
+            ),
+        )
+        mode = "sales" if fetch_kind == "Продажи" else "reads"
+
         col_start, col_end = st.columns(2)
         with col_start:
             period_start = st.date_input(
@@ -79,24 +91,33 @@ class FetchPage(Page):
                 value=self._settings.default_period_end,
             )
 
-        default_metrics = [self._settings.value_type or DEFAULT_VALUE_TYPE]
-        if default_metrics[0] not in VALUE_TYPE_ORDER:
-            default_metrics = [DEFAULT_VALUE_TYPE]
-        selected_labels = st.multiselect(
-            "Метрики (valueType в URL)",
-            options=[VALUE_TYPE_LABELS[v] for v in VALUE_TYPE_ORDER],
-            default=[VALUE_TYPE_LABELS[v] for v in default_metrics],
-            help=(
-                "hit — просмотры, time — время чтения, avgTime — среднее время. "
-                "Каждая метрика — отдельный fetch_run; можно выбрать несколько "
-                "(несколько проходов по сайту)."
-            ),
-            key="fetch_value_types",
-        )
-        label_to_type = {label: key for key, label in VALUE_TYPE_LABELS.items()}
-        value_types = tuple(
-            label_to_type[label] for label in selected_labels if label in label_to_type
-        )
+        value_types: tuple[str, ...] = ()
+        if mode == "reads":
+            default_metrics = [self._settings.value_type or DEFAULT_VALUE_TYPE]
+            if default_metrics[0] not in VALUE_TYPE_ORDER:
+                default_metrics = [DEFAULT_VALUE_TYPE]
+            selected_labels = st.multiselect(
+                "Метрики (valueType в URL)",
+                options=[VALUE_TYPE_LABELS[v] for v in VALUE_TYPE_ORDER],
+                default=[VALUE_TYPE_LABELS[v] for v in default_metrics],
+                help=(
+                    "hit — просмотры, time — время чтения, avgTime — среднее время. "
+                    "Каждая метрика — отдельный fetch_run; можно выбрать несколько "
+                    "(несколько проходов по сайту)."
+                ),
+                key="fetch_value_types",
+            )
+            label_to_type = {label: key for key, label in VALUE_TYPE_LABELS.items()}
+            value_types = tuple(
+                label_to_type[label]
+                for label in selected_labels
+                if label in label_to_type
+            )
+        else:
+            st.caption(
+                "Продажи книги за период (только ItemType=книга). "
+                "Нужен коммерческий статус на author.today."
+            )
 
         wait_login = 0
         with st.expander("Авторизация и опции", expanded=not self._settings.has_auto_login()):
@@ -148,6 +169,7 @@ class FetchPage(Page):
                 save_raw=save_raw,
                 wait_login_seconds=wait_login_seconds,
                 value_types=value_types,
+                mode=mode,
             )
 
         last_result = st.session_state.get(RESULT_STATE_KEY)
@@ -266,11 +288,12 @@ class FetchPage(Page):
         save_raw: bool,
         wait_login_seconds: int,
         value_types: tuple[str, ...],
+        mode: str = "reads",
     ) -> None:
         if period_start > period_end:
             st.error("Начало периода не может быть позже конца.")
             return
-        if not value_types:
+        if mode == "reads" and not value_types:
             st.error("Выберите хотя бы одну метрику (hit / time / avgTime).")
             return
         if not save_mssql and not save_raw:
@@ -292,6 +315,7 @@ class FetchPage(Page):
                 save_raw=save_raw,
                 wait_login_seconds=wait_login_seconds,
                 value_types=value_types,
+                mode=mode,  # type: ignore[arg-type]
             )
         )
         bind_job(job)
@@ -301,6 +325,21 @@ class FetchPage(Page):
 
     def _render_success(self, result: FetchResult) -> None:
         st.success("Загрузка завершена.")
+        if result.mode == "sales":
+            st.caption("Режим: **продажи**")
+            st.metric("Продаж", result.event_count)
+            st.metric("Дней с продажами", result.day_count)
+            if result.table_date_min and result.table_date_max:
+                st.caption(
+                    f"Даты продаж: **{result.table_date_min}** — "
+                    f"**{result.table_date_max}**"
+                )
+            if result.saved_mssql:
+                st.caption("Данные записаны в MS SQL (sale_runs + sale_events).")
+            if result.saved_raw:
+                st.caption("Копия снимка сохранена в data/raw.")
+            return
+
         metrics = ", ".join(result.value_types) if result.value_types else "hit"
         st.caption(f"Метрики: **{metrics}**")
         st.metric("Глав в таблице", result.chapter_count)
