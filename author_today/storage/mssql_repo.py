@@ -93,6 +93,55 @@ class FetchRunDetail:
     rows: tuple[FetchRunReadRow, ...]
 
 
+@dataclass(frozen=True)
+class LoadedSaleRun:
+    run_id: int
+    period_start: date
+    period_end: date
+    fetched_at: datetime
+    events_count: int
+
+
+@dataclass(frozen=True)
+class SaleLoadInfo:
+    book_id: int
+    runs: tuple[LoadedSaleRun, ...]
+    sale_date_min: date | None
+    sale_date_max: date | None
+
+
+@dataclass(frozen=True)
+class SaleEventRow:
+    event_id: int
+    run_id: int
+    processed_at: datetime
+    book_id: int
+    work_format: int | None
+    price: float
+    commission: float
+    author_income: float
+
+
+@dataclass(frozen=True)
+class DailySalesPoint:
+    day: date
+    sales_count: int
+    income_sum: float
+    price_sum: float
+
+
+@dataclass(frozen=True)
+class SalesPeriodReport:
+    book_id: int
+    period_start: date
+    period_end: date
+    events: tuple[SaleEventRow, ...]
+    daily: tuple[DailySalesPoint, ...]
+    sales_count: int
+    income_sum: float
+    price_sum: float
+
+
 class MssqlReadRepository:
     """Сохранение снимков прочтений в MS SQL Server (реализует ReadRepository)."""
 
@@ -205,6 +254,226 @@ class MssqlReadRepository:
                 )
             conn.commit()
             return run_id
+
+    def list_sale_runs(self, book_id: int, *, limit: int = 50) -> list[LoadedSaleRun]:
+        """Последние sale_runs книги с числом событий."""
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT TOP (?)
+                    sr.id,
+                    sr.period_start,
+                    sr.period_end,
+                    sr.fetched_at,
+                    (
+                        SELECT COUNT(*)
+                        FROM dbo.sale_events se
+                        WHERE se.run_id = sr.id
+                    ) AS events_count
+                FROM dbo.sale_runs sr
+                WHERE sr.work_id = ?
+                ORDER BY sr.fetched_at DESC
+                """,
+                limit,
+                book_id,
+            )
+            runs: list[LoadedSaleRun] = []
+            for row in cursor.fetchall():
+                period_start = row[1]
+                period_end = row[2]
+                fetched_raw = row[3]
+                if not isinstance(period_start, date):
+                    period_start = date.fromisoformat(str(period_start)[:10])
+                if not isinstance(period_end, date):
+                    period_end = date.fromisoformat(str(period_end)[:10])
+                if isinstance(fetched_raw, datetime):
+                    fetched_at = fetched_raw
+                else:
+                    fetched_at = datetime.fromisoformat(
+                        str(fetched_raw).replace("Z", "+00:00")
+                    )
+                runs.append(
+                    LoadedSaleRun(
+                        run_id=int(row[0]),
+                        period_start=period_start,
+                        period_end=period_end,
+                        fetched_at=fetched_at,
+                        events_count=int(row[4] or 0),
+                    )
+                )
+            return runs
+
+    def get_sale_load_info(self, book_id: int, *, limit: int = 50) -> SaleLoadInfo:
+        """sale_runs + фактический диапазон дат продаж."""
+        runs = tuple(self.list_sale_runs(book_id, limit=limit))
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT
+                    MIN(CAST(se.processed_at AS DATE)),
+                    MAX(CAST(se.processed_at AS DATE))
+                FROM dbo.sale_events se
+                INNER JOIN dbo.sale_runs sr ON sr.id = se.run_id
+                WHERE sr.work_id = ?
+                """,
+                book_id,
+            )
+            row = cursor.fetchone()
+            dmin, dmax = (row[0], row[1]) if row else (None, None)
+
+        def _as_date(value) -> date | None:
+            if value is None:
+                return None
+            if isinstance(value, date) and not isinstance(value, datetime):
+                return value
+            if isinstance(value, datetime):
+                return value.date()
+            return date.fromisoformat(str(value)[:10])
+
+        return SaleLoadInfo(
+            book_id=book_id,
+            runs=runs,
+            sale_date_min=_as_date(dmin),
+            sale_date_max=_as_date(dmax),
+        )
+
+    def list_sale_events_for_run(self, book_id: int, run_id: int) -> list[SaleEventRow]:
+        """События одного sale_run (книга должна совпадать)."""
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT
+                    se.id,
+                    se.run_id,
+                    se.processed_at,
+                    se.book_id,
+                    se.work_format,
+                    se.price,
+                    se.commission,
+                    se.author_income
+                FROM dbo.sale_events se
+                INNER JOIN dbo.sale_runs sr ON sr.id = se.run_id
+                WHERE sr.work_id = ?
+                  AND sr.id = ?
+                ORDER BY se.processed_at DESC, se.id DESC
+                """,
+                book_id,
+                run_id,
+            )
+            return [self._sale_event_from_row(row) for row in cursor.fetchall()]
+
+    def load_sales_period_report(
+        self,
+        book_id: int,
+        period_start: date,
+        period_end: date,
+    ) -> SalesPeriodReport:
+        """
+        Продажи книги за период по processed_at.
+        При нескольких sale_runs за те же дни события суммируются (как у chapter_reads).
+        """
+        with connect(self.settings) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT
+                    se.id,
+                    se.run_id,
+                    se.processed_at,
+                    se.book_id,
+                    se.work_format,
+                    se.price,
+                    se.commission,
+                    se.author_income
+                FROM dbo.sale_events se
+                INNER JOIN dbo.sale_runs sr ON sr.id = se.run_id
+                WHERE sr.work_id = ?
+                  AND se.book_id = ?
+                  AND CAST(se.processed_at AS DATE) >= ?
+                  AND CAST(se.processed_at AS DATE) <= ?
+                ORDER BY se.processed_at DESC, se.id DESC
+                """,
+                book_id,
+                book_id,
+                period_start,
+                period_end,
+            )
+            events = tuple(
+                self._sale_event_from_row(row) for row in cursor.fetchall()
+            )
+
+            cursor.execute(
+                """
+                SELECT
+                    CAST(se.processed_at AS DATE) AS sale_day,
+                    COUNT(*) AS sales_count,
+                    SUM(se.author_income) AS income_sum,
+                    SUM(se.price) AS price_sum
+                FROM dbo.sale_events se
+                INNER JOIN dbo.sale_runs sr ON sr.id = se.run_id
+                WHERE sr.work_id = ?
+                  AND se.book_id = ?
+                  AND CAST(se.processed_at AS DATE) >= ?
+                  AND CAST(se.processed_at AS DATE) <= ?
+                GROUP BY CAST(se.processed_at AS DATE)
+                ORDER BY sale_day
+                """,
+                book_id,
+                book_id,
+                period_start,
+                period_end,
+            )
+            daily: list[DailySalesPoint] = []
+            for day_raw, cnt, income, price in cursor.fetchall():
+                if isinstance(day_raw, datetime):
+                    day = day_raw.date()
+                elif isinstance(day_raw, date):
+                    day = day_raw
+                else:
+                    day = date.fromisoformat(str(day_raw)[:10])
+                daily.append(
+                    DailySalesPoint(
+                        day=day,
+                        sales_count=int(cnt or 0),
+                        income_sum=float(income or 0),
+                        price_sum=float(price or 0),
+                    )
+                )
+
+        income_sum = sum(e.author_income for e in events)
+        price_sum = sum(e.price for e in events)
+        return SalesPeriodReport(
+            book_id=book_id,
+            period_start=period_start,
+            period_end=period_end,
+            events=events,
+            daily=tuple(daily),
+            sales_count=len(events),
+            income_sum=income_sum,
+            price_sum=price_sum,
+        )
+
+    @staticmethod
+    def _sale_event_from_row(row) -> SaleEventRow:
+        processed = row[2]
+        if not isinstance(processed, datetime):
+            processed = datetime.fromisoformat(str(processed).replace("Z", "+00:00"))
+            if processed.tzinfo is not None:
+                processed = processed.replace(tzinfo=None)
+        work_format = row[4]
+        return SaleEventRow(
+            event_id=int(row[0]),
+            run_id=int(row[1]),
+            processed_at=processed,
+            book_id=int(row[3]),
+            work_format=int(work_format) if work_format is not None else None,
+            price=float(row[5] or 0),
+            commission=float(row[6] or 0),
+            author_income=float(row[7] or 0),
+        )
 
     def list_runs(self, book_id: int, *, limit: int = 20) -> list[dict]:
         with connect(self.settings) as conn:

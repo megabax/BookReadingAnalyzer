@@ -14,6 +14,7 @@ from author_today.services.fetch import FetchJob, FetchResult, register_job
 from author_today.ui.base import Page
 from author_today.ui.components.book_load_info import BookLoadInfoPanel
 from author_today.ui.components.book_picker import BookPicker
+from author_today.ui.components.sale_load_info import SaleLoadInfoPanel
 from author_today.ui.components.fetch_status import (
     RESULT_STATE_KEY,
     bind_job,
@@ -31,10 +32,12 @@ class FetchPage(Page):
         settings: Settings,
         book_picker: BookPicker,
         load_info: BookLoadInfoPanel | None = None,
+        sale_load_info: SaleLoadInfoPanel | None = None,
     ) -> None:
         self._settings = settings
         self._book_picker = book_picker
         self._load_info = load_info or BookLoadInfoPanel(settings)
+        self._sale_load_info = sale_load_info or SaleLoadInfoPanel(settings)
 
     @property
     def title(self) -> str:
@@ -66,6 +69,7 @@ class FetchPage(Page):
         catalog = load_book_catalog(self._settings)
         book_id = self._book_picker.pick(catalog, key_prefix="fetch")
         self._load_info.render(book_id)
+        self._sale_load_info.render(book_id)
 
         fetch_kind = st.radio(
             "Что загружать",

@@ -14,6 +14,7 @@ from author_today.ui.pages.compare import ComparePage
 from author_today.ui.pages.fetch import FetchPage
 from author_today.ui.pages.funnel import FunnelPage
 from author_today.ui.pages.run_detail import RunDetailPage
+from author_today.ui.pages.sales import SalesPage
 from author_today.ui.pages.trend import TrendPage
 from config.settings import Settings
 
@@ -45,13 +46,14 @@ class StreamlitApp:
             FunnelPage(settings, book_picker, cache),
             ComparePage(settings, book_picker, cache),
             TrendPage(settings, book_picker, cache),
+            SalesPage(settings, book_picker),
             FetchPage(settings, book_picker, load_info),
         ]
 
     def run(self) -> None:
         """Отрисовать UI. `st.set_page_config` вызывается в streamlit_app.py до импортов."""
         st.title("AuthorToday")
-        st.caption("Статистика прочтений author.today")
+        st.caption("Статистика прочтений и продаж author.today")
 
         self._sidebar.render()
         render_fetch_status_banner(report_cache=self._report_cache)

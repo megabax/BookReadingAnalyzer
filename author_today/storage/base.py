@@ -17,7 +17,11 @@ if TYPE_CHECKING:
         DeleteRunsPreview,
         DeleteRunsResult,
         FetchRunDetail,
+        LoadedSaleRun,
         RunDateCoverage,
+        SaleEventRow,
+        SaleLoadInfo,
+        SalesPeriodReport,
     )
 
 
@@ -37,6 +41,23 @@ class ReadRepository(Protocol):
 
     def save_sale_snapshot(self, snapshot: SaleSnapshot) -> int:
         """Сохранить снимок продаж; вернуть sale_runs.id."""
+
+    def list_sale_runs(self, book_id: int, *, limit: int = 50) -> list[LoadedSaleRun]:
+        """Последние sale_runs книги."""
+
+    def get_sale_load_info(self, book_id: int, *, limit: int = 50) -> SaleLoadInfo:
+        """sale_runs + диапазон дат продаж."""
+
+    def list_sale_events_for_run(self, book_id: int, run_id: int) -> list[SaleEventRow]:
+        """События одного sale_run."""
+
+    def load_sales_period_report(
+        self,
+        book_id: int,
+        period_start: date,
+        period_end: date,
+    ) -> SalesPeriodReport:
+        """Продажи книги за период (по processed_at)."""
 
     def list_runs(self, book_id: int, *, limit: int = 20) -> list[dict]:
         """Последние загрузки книги (от новых к старым)."""
