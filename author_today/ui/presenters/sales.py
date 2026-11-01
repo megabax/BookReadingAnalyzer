@@ -6,7 +6,12 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from author_today.services.sales import work_format_label
+from author_today.services.sales import (
+    SalesChartPoint,
+    SalesGroupBy,
+    SALES_GROUP_BY_LABELS,
+    work_format_label,
+)
 from author_today.storage.mssql_repo import SalesPeriodReport
 
 
@@ -39,24 +44,37 @@ class SalesPresenter:
 
 
 class SalesChart:
-    def render(self, report: SalesPeriodReport) -> None:
-        if not report.daily:
-            st.caption("Нет дневных точек для графика.")
+    def render(
+        self,
+        points: list[SalesChartPoint],
+        *,
+        group_by: SalesGroupBy = "day",
+    ) -> None:
+        if not points:
+            st.caption("Нет точек для графика.")
             return
+
+        x_title = SALES_GROUP_BY_LABELS.get(group_by, "Период").removeprefix("По ").capitalize()
+        if group_by == "day":
+            x_title = "День"
+        elif group_by == "week":
+            x_title = "Неделя"
+        else:
+            x_title = "Месяц"
 
         frame = pd.DataFrame(
             [
                 {
-                    "day": p.day.isoformat(),
+                    "label": p.label,
                     "sales_count": p.sales_count,
                     "income_sum": p.income_sum,
                 }
-                for p in report.daily
+                for p in points
             ]
         )
 
         base = alt.Chart(frame).encode(
-            x=alt.X("day:N", title="День", sort=None),
+            x=alt.X("label:N", title=x_title, sort=None),
         )
         bars = base.mark_bar(color="#4C78A8", opacity=0.85).encode(
             y=alt.Y(
@@ -65,7 +83,7 @@ class SalesChart:
                 axis=alt.Axis(titleColor="#4C78A8"),
             ),
             tooltip=[
-                alt.Tooltip("day:N", title="День"),
+                alt.Tooltip("label:N", title=x_title),
                 alt.Tooltip("sales_count:Q", title="Продаж"),
                 alt.Tooltip("income_sum:Q", title="Доход", format=".2f"),
             ],
@@ -77,7 +95,7 @@ class SalesChart:
                 axis=alt.Axis(titleColor="#F58518", orient="right"),
             ),
             tooltip=[
-                alt.Tooltip("day:N", title="День"),
+                alt.Tooltip("label:N", title=x_title),
                 alt.Tooltip("income_sum:Q", title="Доход", format=".2f"),
             ],
         )

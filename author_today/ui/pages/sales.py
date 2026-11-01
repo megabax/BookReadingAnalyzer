@@ -6,7 +6,12 @@ import streamlit as st
 
 from author_today.errors import AuthorTodayError
 from author_today.services.books import load_book_catalog
-from author_today.services.sales import load_sales_period_report
+from author_today.services.sales import (
+    SALES_GROUP_BY_LABELS,
+    SalesGroupBy,
+    build_sales_chart_series,
+    load_sales_period_report,
+)
 from author_today.ui.base import Page
 from author_today.ui.components.book_picker import BookPicker
 from author_today.ui.presenters.sales import SalesChart, SalesPresenter
@@ -14,7 +19,7 @@ from config.settings import Settings
 
 
 class SalesPage(Page):
-    """Продажи книги за период: метрики, график по дням, таблица событий."""
+    """Продажи книги за период: метрики, график, таблица событий."""
 
     def __init__(
         self,
@@ -76,8 +81,22 @@ class SalesPage(Page):
             return
 
         self._presenter.metrics(report)
-        st.markdown("#### По дням")
-        self._chart.render(report)
+
+        st.markdown("#### График")
+        group_label = st.radio(
+            "Группировка",
+            options=list(SALES_GROUP_BY_LABELS.values()),
+            horizontal=True,
+            key="sales_chart_group_by",
+            help="Пустые дни / недели / месяцы показываются нулём, без пропусков на оси.",
+        )
+        label_to_group: dict[str, SalesGroupBy] = {
+            label: key for key, label in SALES_GROUP_BY_LABELS.items()
+        }
+        group_by = label_to_group[group_label]
+        series = build_sales_chart_series(report, group_by=group_by)
+        self._chart.render(series, group_by=group_by)
+
         st.markdown("#### События")
         self._presenter.events_table(report)
         if report.sales_count:
