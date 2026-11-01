@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import altair as alt
 import pandas as pd
-import streamlit as st
 
 from author_today.services.sales import (
     SalesChartPoint,
     SalesGroupBy,
-    SALES_GROUP_BY_LABELS,
     work_format_label,
 )
 from author_today.storage.mssql_repo import SalesPeriodReport
@@ -17,12 +14,16 @@ from author_today.storage.mssql_repo import SalesPeriodReport
 
 class SalesPresenter:
     def metrics(self, report: SalesPeriodReport) -> None:
+        import streamlit as st
+
         c1, c2, c3 = st.columns(3)
         c1.metric("Продаж", report.sales_count)
         c2.metric("Доход автора, ₽", f"{report.income_sum:,.2f}".replace(",", " "))
         c3.metric("Сумма цен, ₽", f"{report.price_sum:,.2f}".replace(",", " "))
 
     def events_table(self, report: SalesPeriodReport) -> None:
+        import streamlit as st
+
         if not report.events:
             st.info("За период продаж нет.")
             return
@@ -50,11 +51,13 @@ class SalesChart:
         *,
         group_by: SalesGroupBy = "day",
     ) -> None:
+        import altair as alt
+        import streamlit as st
+
         if not points:
             st.caption("Нет точек для графика.")
             return
 
-        x_title = SALES_GROUP_BY_LABELS.get(group_by, "Период").removeprefix("По ").capitalize()
         if group_by == "day":
             x_title = "День"
         elif group_by == "week":
@@ -105,3 +108,4 @@ class SalesChart:
             .properties(height=320)
         )
         st.altair_chart(chart, use_container_width=True)
+

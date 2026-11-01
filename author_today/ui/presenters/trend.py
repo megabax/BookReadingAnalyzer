@@ -5,9 +5,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-import altair as alt
 import pandas as pd
-import streamlit as st
 
 from author_today.analyze.completion_trend import (
     CompletionTrendReport,
@@ -102,6 +100,9 @@ class TrendChart:
         y_title: str,
         notes: list[BookNote] | None = None,
     ) -> None:
+        import altair as alt
+        import streamlit as st
+
         chart_df = pd.DataFrame(
             {
                 "month": [p.month_label for p in report.points],
