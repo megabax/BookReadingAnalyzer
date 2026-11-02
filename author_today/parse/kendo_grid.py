@@ -21,6 +21,16 @@ CHAPTER_MARKERS = (
     "вместо эпилога",
     "часть",
 )
+# Заглушка «нет статистики» (формулировка на сайте может чуть отличаться)
+# После нормализации ищем мягкие шаблоны, не точную цитату.
+EMPTY_STATS_PATTERNS = (
+    re.compile(r"пока\s+нет\s+статистик"),
+    re.compile(r"нет\s+статистик"),
+    re.compile(r"статистик\w*\s+(?:пока\s+)?отсутств"),
+)
+# Минимальный «вес» DOM-сетки: даты / «Часть» / главы
+MIN_POPULATED_GRID_SCORE = 5
+GRID_WAIT_POLL_S = 0.5
 SCROLL_SETTLE_S = 0.2
 MAX_SCROLL_PASSES = 40
 MAX_VERTICAL_SCROLL_PASSES = 50
@@ -81,27 +91,133 @@ def _score_grid_element(element) -> int:
     return score
 
 
-def find_best_grid(driver: WebDriver, timeout: int):
-    wait = WebDriverWait(driver, timeout)
+def _normalize_page_text(page_text: str) -> str:
+    """Нижний регистр, ё→е, пунктуация/многоточие → пробелы."""
+    text = page_text.lower().replace("ё", "е")
+    text = re.sub(r"[^\w\s]+", " ", text, flags=re.UNICODE)
+    return " ".join(text.split())
 
-    def any_grid_present(drv):
-        for sel in (".k-grid", "div.k-grid-content-locked", "table[role='grid']", "table.table"):
-            if drv.find_elements(By.CSS_SELECTOR, sel):
-                return True
+
+def page_shows_empty_stats_placeholder(page_text: str) -> bool:
+    """
+    Заглушка про отсутствие статистики (пока грузится отчёт).
+
+    Мягкий поиск: не точная фраза, а шаблоны вроде «пока нет статистик…» /
+    «нет статистики» с разным регистром, пробелами и пунктуацией.
+    """
+    if not page_text:
+        return False
+    normalized = _normalize_page_text(page_text)
+    return any(pattern.search(normalized) for pattern in EMPTY_STATS_PATTERNS)
+
+
+def _kendo_datasource_has_rows(driver: WebDriver) -> bool:
+    """True, если у какого-либо .k-grid в dataSource уже есть строки."""
+    try:
+        return bool(
+            driver.execute_script(
+                """
+                var grids = document.querySelectorAll('.k-grid');
+                for (var i = 0; i < grids.length; i++) {
+                  if (!window.jQuery) return false;
+                  var g = jQuery(grids[i]).data('kendoGrid');
+                  if (!g || !g.dataSource) continue;
+                  try {
+                    if (g.dataSource.total && g.dataSource.total() > 0) return true;
+                  } catch (e) {}
+                  try {
+                    var view = g.dataSource.view && g.dataSource.view();
+                    if (view && view.length > 0) return true;
+                  } catch (e2) {}
+                  try {
+                    var data = g.dataSource.data && g.dataSource.data();
+                    if (data && data.length > 0) return true;
+                  } catch (e3) {}
+                }
+                return false;
+                """
+            )
+        )
+    except Exception:
         return False
 
-    wait.until(any_grid_present)
 
+def _collect_grid_candidates(driver: WebDriver) -> list:
     candidates = list(driver.find_elements(By.CSS_SELECTOR, ".k-grid"))
-    if not candidates:
-        for el in driver.find_elements(By.CSS_SELECTOR, "table"):
-            if "Часть" in el.text or DATE_RE.search(el.text):
-                candidates.append(el)
+    if candidates:
+        return candidates
+    for el in driver.find_elements(By.CSS_SELECTOR, "table[role='grid'], table.table, table"):
+        text = el.text or ""
+        if "Часть" in text or DATE_RE.search(text) or _is_chapter_label(text):
+            candidates.append(el)
+    return candidates
 
-    if not candidates:
-        raise TimeoutException("Таблица статистики не найдена на странице")
 
-    return max(candidates, key=_score_grid_element)
+def _grid_has_chapter_rows(grid) -> bool:
+    """В locked-колонке или в тексте сетки уже видны главы."""
+    try:
+        locked_rows = grid.find_elements(
+            By.CSS_SELECTOR, ".k-grid-content-locked tr, .k-grid-content-locked td"
+        )
+        for el in locked_rows[:80]:
+            if _is_chapter_label((el.text or "").strip()):
+                return True
+    except Exception:
+        pass
+    sample = (grid.text or "")[:4000]
+    return any(
+        marker in sample.lower()
+        for marker in ("глава", "страница книги", "интерлюдия", "эпилог")
+    )
+
+
+def find_populated_stats_grid(driver: WebDriver):
+    """
+    Вернуть сетку с данными или None.
+    Пустой каркас .k-grid / заглушка «нет статистики» — ещё не готово.
+    """
+    if _kendo_datasource_has_rows(driver):
+        candidates = _collect_grid_candidates(driver)
+        if candidates:
+            return max(candidates, key=_score_grid_element)
+
+    candidates = _collect_grid_candidates(driver)
+    if not candidates:
+        return None
+
+    best = max(candidates, key=_score_grid_element)
+    score = _score_grid_element(best)
+    if score >= MIN_POPULATED_GRID_SCORE or _grid_has_chapter_rows(best):
+        return best
+    return None
+
+
+def find_best_grid(driver: WebDriver, timeout: int):
+    """
+    Ждать появления заполненной таблицы (поллинг раз в GRID_WAIT_POLL_S).
+    Заглушка «У вас пока нет статистики…» не считается готовым результатом —
+    продолжаем ждать, пока не загрузится грид с главами/датами.
+    """
+    wait = WebDriverWait(driver, timeout, poll_frequency=GRID_WAIT_POLL_S)
+
+    def grid_ready(drv: WebDriver):
+        return find_populated_stats_grid(drv)
+
+    try:
+        grid = wait.until(grid_ready)
+    except TimeoutException as exc:
+        empty = page_shows_empty_stats_placeholder(driver.page_source or "")
+        hint = (
+            " На странице всё ещё «пока нет статистики» — либо данных за период "
+            "действительно нет, либо отчёт грузится дольше AT_PAGE_TIMEOUT."
+            if empty
+            else " Проверьте вход, доступ к книге и AT_PAGE_TIMEOUT в .env."
+        )
+        raise TimeoutException(
+            f"Таблица статистики не появилась за {timeout} с.{hint}"
+        ) from exc
+
+    return grid
 
 
 def _header_scroll_el(grid):

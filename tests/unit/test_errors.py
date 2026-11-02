@@ -61,3 +61,16 @@ def test_format_exception_message_cause_chain():
     text = format_exception_message(wrapped)
     assert "Ошибка при работе с MS SQL" in text
     assert "constraint violated" in text
+
+
+def test_format_exception_message_empty_timeout():
+    class EmptyTimeout(Exception):
+        """Имитация Selenium TimeoutException с пустым текстом."""
+
+        def __str__(self) -> str:
+            return "Message:"
+
+    EmptyTimeout.__name__ = "TimeoutException"
+    text = format_exception_message(EmptyTimeout())
+    assert "TimeoutException" in text
+    assert "AT_PAGE_TIMEOUT" in text or "ожидания" in text

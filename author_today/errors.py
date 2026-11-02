@@ -71,6 +71,12 @@ def format_exception_message(exc: BaseException) -> str:
             text = primary
         elif from_args:
             text = from_args
+        elif name == "TimeoutException":
+            text = (
+                "Истекло время ожидания страницы/элемента Selenium. "
+                "Чаще всего не появилась таблица статистики или форма входа — "
+                "проверьте авторизацию и AT_PAGE_TIMEOUT / AT_AUTH_TIMEOUT."
+            )
         else:
             text = repr(current.args) if getattr(current, "args", None) else "(нет текста)"
 

@@ -130,7 +130,12 @@ def prompt_confirmation_code(driver: WebDriver, code_provider: Callable[[str], s
 
 
 def wait_until_authenticated(driver: WebDriver, timeout: int) -> None:
-    WebDriverWait(driver, timeout).until(lambda d: is_authenticated(d))
+    try:
+        WebDriverWait(driver, timeout).until(lambda d: is_authenticated(d))
+    except TimeoutException as exc:
+        raise TimeoutException(
+            f"Не дождались успешного входа за {timeout} с."
+        ) from exc
 
 
 def wait_for_login_or_confirmation(driver: WebDriver, timeout: int) -> None:
@@ -141,7 +146,13 @@ def wait_for_login_or_confirmation(driver: WebDriver, timeout: int) -> None:
             or is_authenticated(drv)
         )
 
-    WebDriverWait(driver, timeout).until(login_or_confirm)
+    try:
+        WebDriverWait(driver, timeout).until(login_or_confirm)
+    except TimeoutException as exc:
+        raise TimeoutException(
+            f"Не дождались формы входа или кода подтверждения за {timeout} с. "
+            "Откройте браузер без headless (AT_HEADLESS=0) или проверьте сессию."
+        ) from exc
 
 
 def perform_login(

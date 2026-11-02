@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from author_today.parse.kendo_grid import (
     _parse_number,
+    _score_grid_element,
     _values_for_date_indices,
     iter_scroll_row_indices,
     merge_scroll_slice,
+    page_shows_empty_stats_placeholder,
     stats_table_from_maps,
 )
 
@@ -17,6 +19,27 @@ def test_parse_number_int_and_float():
     assert _parse_number("1 234.5") == 1234.5
     assert _parse_number("") is None
     assert _parse_number("abc") is None
+
+
+def test_page_shows_empty_stats_placeholder():
+    assert page_shows_empty_stats_placeholder("У вас пока нет статистики...")
+    assert page_shows_empty_stats_placeholder("  У вас   пока нет статистики  за период ")
+    assert page_shows_empty_stats_placeholder("Нет статистики")
+    assert page_shows_empty_stats_placeholder("пока нет статистик…")
+    assert page_shows_empty_stats_placeholder("Статистика пока отсутствует")
+    assert not page_shows_empty_stats_placeholder("Глава 1\n01.10\n12")
+    assert not page_shows_empty_stats_placeholder("общая статистика чтений по главам")
+
+
+def test_score_grid_prefers_chapter_stats_table():
+    class FakeEl:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+    empty = FakeEl("У вас пока нет статистики...")
+    full = FakeEl("Часть\nСтраница книги\nГлава 1\n01.10 02.10\n12 5")
+    assert _score_grid_element(empty) < 5
+    assert _score_grid_element(full) >= 5
 
 
 def test_merge_scroll_slice_two_passes():
